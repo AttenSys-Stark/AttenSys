@@ -5,7 +5,7 @@ use core::starknet::{ContractAddress};
 //@todo look into computing an hash passcode, pass it in as an argument (at the point of creating
 //event), and make sure this hash can be confirmed.
 #[event]
-#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+#[derive(Drop, Debug, PartialEq, starknet::Event)]
 enum Event {
     EventCreated: EventCreated,
     EventEnded: EventEnded,
@@ -14,6 +14,45 @@ enum Event {
     AttendeeRegistered: AttendeeRegistered,
     RegistrationStarted: RegistrationStarted,
 }
+
+#[derive(Drop, Debug, PartialEq, starknet::Event)]
+pub struct EventCreated {
+    pub owner: ContractAddress,
+    pub event_name: ByteArray,
+    pub base_uri: ByteArray,
+    pub name: ByteArray,
+    pub symbol: ByteArray,
+    pub start_time: u256,
+    pub end_time: u256,
+    pub reg_status: bool,
+}
+
+#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+pub struct EventEnded {
+    pub event_identifier: u256,
+}
+
+#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+pub struct AttendeeMarked {
+    pub event_identifier: u256,
+}
+
+#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+pub struct AttendeesCertified {
+    pub event_identifier: u256,
+}
+
+#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+pub struct AttendeeRegistered {
+    pub event_identifier: u256,
+}
+
+#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+pub struct RegistrationStarted {
+    pub event_identifier: u256,
+    pub reg_status: bool,
+}
+
 
 #[starknet::interface]
 pub trait IAttenSysEvent<TContractState> {
@@ -196,6 +235,21 @@ mod AttenSysEvent {
                 );
             self.event_identifier.write(new_identifier);
             self.track_minted_nft_id.entry((new_identifier, deployed_contract_address)).write(1);
+            self
+                .emit(
+                    Event::EventCreated(
+                        EventCreated {
+                            owner: owner_,
+                            event_name: event_name,
+                            base_uri: base_uri,
+                            name: name_,
+                            symbol: symbol,
+                            start_time: start_time_,
+                            end_time: end_time_,
+                            reg_status: reg_status,
+                        },
+                    ),
+                );
             deployed_contract_address
         }
 
