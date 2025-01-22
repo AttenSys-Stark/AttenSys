@@ -307,6 +307,7 @@ mod AttenSysEvent {
                         .write(nft_id + 1);
                 }
             }
+            self.emit(Event::AttendeesCertified(AttendeesCertified { event_identifier }));
         }
 
         fn mark_attendance(ref self: ContractState, event_identifier: u256) {
@@ -344,6 +345,7 @@ mod AttenSysEvent {
                 event_name: event_details.event_name, time: event_details.time.start_time,
             };
             self.all_attended_event.entry(get_caller_address()).append().write(call_data);
+            self.emit(Event::AttendeeMarked(AttendeeMarked { event_identifier }));
         }
 
         fn register_for_event(ref self: ContractState, event_identifier: u256) {
@@ -378,6 +380,7 @@ mod AttenSysEvent {
                 event_name: event_details.event_name, time: event_details.time.start_time,
             };
             self.all_registered_event_by_user.entry(get_caller_address()).append().write(call_data);
+            self.emit(Event::AttendeeRegistered(AttendeeRegistered { event_identifier }));
         }
 
         //@todo fn get_registered_users(ref self: ContractState, event_identifier : u256, passcode :
@@ -451,6 +454,7 @@ mod AttenSysEvent {
                     }
                 }
             }
+            self.emit(Event::RegistrationStarted(RegistrationStarted { event_identifier, reg_stat }));
         }
 
         fn get_event_details(self: @ContractState, event_identifier: u256) -> EventStruct {
