@@ -2,6 +2,7 @@ use starknet::{ContractAddress, contract_address_const, ClassHash};
 // get_caller_address,
 use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global,
+    spy_events, EventSpyAssertionsTrait,
 };
 
 
@@ -10,6 +11,7 @@ use snforge_std::{
 use attendsys::contracts::AttenSysCourse::IAttenSysCourseDispatcher;
 use attendsys::contracts::AttenSysCourse::IAttenSysCourseDispatcherTrait;
 
+use attendsys::contracts::AttenSysEvent::AttenSysEvent;
 use attendsys::contracts::AttenSysEvent::IAttenSysEventDispatcher;
 use attendsys::contracts::AttenSysEvent::IAttenSysEventDispatcherTrait;
 
@@ -274,6 +276,7 @@ fn test_create_event() {
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let owner_address_two: ContractAddress = contract_address_const::<'owner_two'>();
     let dispatcher = IAttenSysEventDispatcher { contract_address };
+    let mut spy = spy_events();
     let token_uri: ByteArray = "https://dummy_uri.com/your_id";
     let event_name = "web3";
     let nft_name = "onlydust";
@@ -289,6 +292,17 @@ fn test_create_event() {
             2238493,
             32989989,
             true,
+        );
+        spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    SpyEventsChecker::Event::FirstEvent(
+                        SpyEventsChecker::FirstEvent { some_data: 123 }
+                    )
+                )
+            ]
         );
     let event_details_check = dispatcher.get_event_details(1);
     assert(event_details_check.event_name == event_name, 'wrong_name');
