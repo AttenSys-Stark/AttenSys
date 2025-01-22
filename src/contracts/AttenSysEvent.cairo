@@ -102,6 +102,7 @@ pub trait IAttenSysNft<TContractState> {
 #[starknet::contract]
 mod AttenSysEvent {
     use super::IAttenSysNftDispatcherTrait;
+    use super::Event;
     use core::starknet::{
         ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
         syscalls::deploy_syscall,
