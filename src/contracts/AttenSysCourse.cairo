@@ -10,29 +10,29 @@ pub trait IAttenSysCourse<TContractState> {
         accessment_: bool,
         base_uri: ByteArray,
         name_: ByteArray,
-        symbol: ByteArray
+        symbol: ByteArray,
     ) -> ContractAddress;
     fn add_replace_course_content(
         ref self: TContractState,
         course_identifier: u256,
         owner_: ContractAddress,
         new_course_uri_a: felt252,
-        new_course_uri_b: felt252
+        new_course_uri_b: felt252,
     );
     //untested
     fn finish_course_claim_certification(ref self: TContractState, course_identifier: u256);
     //untested
     fn check_course_completion_status_n_certification(
-        self: @TContractState, course_identifier: u256, candidate: ContractAddress
+        self: @TContractState, course_identifier: u256, candidate: ContractAddress,
     ) -> bool;
     fn get_course_infos(
-        self: @TContractState, course_identifiers: Array<u256>
+        self: @TContractState, course_identifiers: Array<u256>,
     ) -> Array<AttenSysCourse::Course>;
     //untested
     fn get_user_completed_courses(self: @TContractState, user: ContractAddress) -> Array<u256>;
     fn get_all_courses_info(self: @TContractState) -> Array<AttenSysCourse::Course>;
     fn get_all_creator_courses(
-        self: @TContractState, owner_: ContractAddress
+        self: @TContractState, owner_: ContractAddress,
     ) -> Array<AttenSysCourse::Course>;
     fn get_creator_info(self: @TContractState, creator: ContractAddress) -> AttenSysCourse::Creator;
     fn get_course_nft_contract(self: @TContractState, course_identifier: u256) -> ContractAddress;
@@ -52,7 +52,7 @@ mod AttenSysCourse {
     use core::starknet::{ContractAddress, get_caller_address, syscalls::deploy_syscall, ClassHash};
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
-        MutableVecTrait
+        MutableVecTrait,
     };
 
     #[storage]
@@ -118,7 +118,7 @@ mod AttenSysCourse {
             accessment_: bool,
             base_uri: ByteArray,
             name_: ByteArray,
-            symbol: ByteArray
+            symbol: ByteArray,
         ) -> ContractAddress {
             //make an address zero check
             let identifier_count = self.identifier_tracker.read();
@@ -132,7 +132,7 @@ mod AttenSysCourse {
                 current_creator_info.number_of_courses += 1;
                 current_creator_info.creator_status = true;
             }
-            let empty_uri = Uri { first: '', second: '', };
+            let empty_uri = Uri { first: '', second: '' };
             let mut course_call_data: Course = Course {
                 owner: owner_,
                 course_identifier: current_identifier,
@@ -156,7 +156,7 @@ mod AttenSysCourse {
 
             //deploy contract
             let (deployed_contract_address, _) = deploy_syscall(
-                self.hash.read(), contract_address_salt, constructor_args.span(), false
+                self.hash.read(), contract_address_salt, constructor_args.span(), false,
             )
                 .expect('failed to deploy_syscall');
             self
@@ -180,7 +180,7 @@ mod AttenSysCourse {
             course_identifier: u256,
             owner_: ContractAddress,
             new_course_uri_a: felt252,
-            new_course_uri_b: felt252
+            new_course_uri_b: felt252,
         ) {
             let mut current_course_info: Course = self
                 .specific_course_info_with_identifer
@@ -189,7 +189,7 @@ mod AttenSysCourse {
             let pre_existing_counter = self.identifier_tracker.read();
             assert(course_identifier <= pre_existing_counter, 'course non-existent');
             assert(current_course_info.owner == get_caller_address(), 'not owner');
-            let call_data: Uri = Uri { first: new_course_uri_a, second: new_course_uri_b, };
+            let call_data: Uri = Uri { first: new_course_uri_a, second: new_course_uri_b };
             current_course_info.uri = call_data;
             self
                 .specific_course_info_with_identifer
@@ -201,20 +201,13 @@ mod AttenSysCourse {
             if self.all_course_info.len() == 0 {
                 self.all_course_info.append().write(current_course_info);
             } else {
-                for i in 0
-                    ..self
-                        .all_course_info
-                        .len() {
-                            if self
-                                .all_course_info
-                                .at(i)
-                                .read()
-                                .course_identifier == course_identifier {
-                                self.all_course_info.at(i).uri.write(call_data);
-                            } else {
-                                self.all_course_info.append().write(current_course_info);
-                            }
-                        };
+                for i in 0..self.all_course_info.len() {
+                    if self.all_course_info.at(i).read().course_identifier == course_identifier {
+                        self.all_course_info.at(i).uri.write(call_data);
+                    } else {
+                        self.all_course_info.append().write(current_course_info);
+                    }
+                };
             };
             //run a loop to update the creator content storage data
             let mut i: u64 = 0;
@@ -244,7 +237,7 @@ mod AttenSysCourse {
                 .read();
 
             let nft_dispatcher = super::IAttenSysNftDispatcher {
-                contract_address: nft_contract_address
+                contract_address: nft_contract_address,
             };
 
             let nft_id = self
@@ -260,13 +253,13 @@ mod AttenSysCourse {
 
 
         fn check_course_completion_status_n_certification(
-            self: @ContractState, course_identifier: u256, candidate: ContractAddress
+            self: @ContractState, course_identifier: u256, candidate: ContractAddress,
         ) -> bool {
             self.completion_status.entry((candidate, course_identifier)).read()
         }
 
         fn get_course_infos(
-            self: @ContractState, course_identifiers: Array<u256>
+            self: @ContractState, course_identifiers: Array<u256>,
         ) -> Array<Course> {
             let mut course_info_list: Array<Course> = array![];
             for element in course_identifiers {
@@ -295,10 +288,9 @@ mod AttenSysCourse {
 
         fn get_all_courses_info(self: @ContractState) -> Array<Course> {
             let mut arr = array![];
-            for i in 0
-                ..self.all_course_info.len() {
-                    arr.append(self.all_course_info.at(i).read());
-                };
+            for i in 0..self.all_course_info.len() {
+                arr.append(self.all_course_info.at(i).read());
+            };
             arr
         }
 
@@ -323,7 +315,7 @@ mod AttenSysCourse {
             self.course_creator_info.entry(creator).read()
         }
         fn get_course_nft_contract(
-            self: @ContractState, course_identifier: u256
+            self: @ContractState, course_identifier: u256,
         ) -> ContractAddress {
             self.course_nft_contract_address.entry(course_identifier).read()
         }

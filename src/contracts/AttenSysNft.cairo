@@ -30,12 +30,12 @@ mod AttenSysNft {
         #[flat]
         ERC721Event: ERC721Component::Event,
         #[flat]
-        SRC5Event: SRC5Component::Event
+        SRC5Event: SRC5Component::Event,
     }
 
     #[constructor]
     fn constructor(
-        ref self: ContractState, base_uri: ByteArray, name_: ByteArray, symbol: ByteArray
+        ref self: ContractState, base_uri: ByteArray, name_: ByteArray, symbol: ByteArray,
     ) {
         self.erc721.initializer(name_, symbol, base_uri);
     }

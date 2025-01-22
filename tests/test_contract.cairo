@@ -1,7 +1,7 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 // get_caller_address,
 use snforge_std::{
-    declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global
+    declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global,
 };
 
 
@@ -31,16 +31,16 @@ pub trait IERC721<TContractState> {
         from: ContractAddress,
         to: ContractAddress,
         token_id: u256,
-        data: Span<felt252>
+        data: Span<felt252>,
     );
     fn transfer_from(
-        ref self: TContractState, from: ContractAddress, to: ContractAddress, token_id: u256
+        ref self: TContractState, from: ContractAddress, to: ContractAddress, token_id: u256,
     );
     fn approve(ref self: TContractState, to: ContractAddress, token_id: u256);
     fn set_approval_for_all(ref self: TContractState, operator: ContractAddress, approved: bool);
     fn get_approved(self: @TContractState, token_id: u256) -> ContractAddress;
     fn is_approved_for_all(
-        self: @TContractState, owner: ContractAddress, operator: ContractAddress
+        self: @TContractState, owner: ContractAddress, operator: ContractAddress,
     ) -> bool;
 
     // IERC721Metadata
@@ -57,7 +57,7 @@ fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
     let contract = declare(name).unwrap();
     let mut constuctor_arg = ArrayTrait::new();
     let contract_owner_address: ContractAddress = contract_address_const::<
-        'contract_owner_address'
+        'contract_owner_address',
     >();
 
     contract_owner_address.serialize(ref constuctor_arg);
@@ -71,14 +71,14 @@ fn deploy_organization_contract(
     name: ByteArray,
     hash: ClassHash,
     _token_address: ContractAddress,
-    sponsor_contract_address: ContractAddress
+    sponsor_contract_address: ContractAddress,
 ) -> ContractAddress {
     let contract = declare(name).unwrap();
 
     let mut constuctor_arg = ArrayTrait::new();
 
     let contract_owner_address: ContractAddress = contract_address_const::<
-        'contract_owner_address'
+        'contract_owner_address',
     >();
 
     contract_owner_address.serialize(ref constuctor_arg);
@@ -101,7 +101,7 @@ fn deploy_sponsorship_contract(name: ByteArray, organization: ContractAddress) -
     let mut constructor_arg = ArrayTrait::new();
 
     let contract_owner_address: ContractAddress = contract_address_const::<
-        'contract_owner_address'
+        'contract_owner_address',
     >();
 
     let event: ContractAddress = contract_address_const::<'event_address'>();
@@ -288,7 +288,7 @@ fn test_create_event() {
             nft_symb,
             2238493,
             32989989,
-            true
+            true,
         );
     let event_details_check = dispatcher.get_event_details(1);
     assert(event_details_check.event_name == event_name, 'wrong_name');
@@ -311,7 +311,7 @@ fn test_create_event() {
             nft_symb_two,
             2238493,
             32989989,
-            true
+            true,
         );
 
     let event_details_check_two = dispatcher.get_event_details(2);
@@ -336,7 +336,7 @@ fn test_reg_nd_mark() {
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher
         .create_event(
-            owner_address, event_name.clone(), token_uri, nft_name, nft_symb, 223, 329, true
+            owner_address, event_name.clone(), token_uri, nft_name, nft_symb, 223, 329, true,
         );
 
     start_cheat_block_timestamp_global(55555);
@@ -406,7 +406,7 @@ fn test_create_org_profile() {
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
 
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
 
@@ -425,7 +425,7 @@ fn test_add_instructor_to_org() {
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
 
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
@@ -453,7 +453,7 @@ fn test_add_instructor_to_org_already_added() {
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
@@ -476,7 +476,7 @@ fn test_remove_instructor_from_org() {
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
@@ -506,7 +506,7 @@ fn test_create_bootcamp_for_org() {
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
@@ -530,7 +530,7 @@ fn test_create_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -543,7 +543,7 @@ fn test_add_active_meet_link_to_bootcamp() {
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
@@ -567,7 +567,7 @@ fn test_add_active_meet_link_to_bootcamp() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
         );
 
     // possible to override active meet link.
@@ -588,7 +588,7 @@ fn test_sponsor() {
     let token_addr = contract_address_const::<'token_addr'>();
     let contract_address = deploy_organization_contract("AttenSysOrg", hash, token_addr, dummy_org);
     let contract_owner_address: ContractAddress = contract_address_const::<
-        'contract_owner_address'
+        'contract_owner_address',
     >();
     // // set the organization address to the original contract address
 // let sponsor_contract_addr = deploy_sponsorship_contract(
@@ -622,7 +622,7 @@ fn test_when_no_org_address_add_instructor_to_org() {
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let instructor_address: ContractAddress = contract_address_const::<'instructor'>();

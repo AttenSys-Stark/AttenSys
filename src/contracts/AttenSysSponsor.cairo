@@ -10,7 +10,7 @@ pub trait IERC20<TContractState> {
     fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
     fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
     fn transferFrom(
-        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256,
     ) -> bool;
     fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
 }
@@ -42,7 +42,7 @@ mod AttenSysSponsor {
     fn constructor(
         ref self: ContractState,
         organization_contract_address: ContractAddress,
-        event_contract_address: ContractAddress
+        event_contract_address: ContractAddress,
     ) {
         assert(!organization_contract_address.is_zero(), 'zero address.');
         assert(!event_contract_address.is_zero(), 'zero address.');
@@ -57,7 +57,7 @@ mod AttenSysSponsor {
             let caller = get_caller_address();
             assert(
                 caller == self.attenSysOrganization.read() || caller == self.attenSysEvent.read(),
-                'not an expected caller.'
+                'not an expected caller.',
             );
             let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
             let has_transferred = token_dispatcher
@@ -72,7 +72,7 @@ mod AttenSysSponsor {
             let caller = get_caller_address();
             assert(
                 caller == self.attenSysOrganization.read() || caller == self.attenSysEvent.read(),
-                'not an expected caller.'
+                'not an expected caller.',
             );
             let contract_token_balance = self.balances.read(token_address);
             assert(amount <= contract_token_balance, 'Not enough balance');
