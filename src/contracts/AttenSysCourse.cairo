@@ -36,6 +36,10 @@ pub trait IAttenSysCourse<TContractState> {
     ) -> Array<AttenSysCourse::Course>;
     fn get_creator_info(self: @TContractState, creator: ContractAddress) -> AttenSysCourse::Creator;
     fn get_course_nft_contract(self: @TContractState, course_identifier: u256) -> ContractAddress;
+    fn transfer_admin(ref self: TContractState, new_admin: ContractAddress);
+    fn claim_admin_ownership(ref self: TContractState);
+    fn get_admin(self: @TContractState) -> ContractAddress;
+    fn get_new_admin(self: @TContractState) -> ContractAddress;
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -49,7 +53,7 @@ pub trait IAttenSysNft<TContractState> {
 #[starknet::contract]
 mod AttenSysCourse {
     use super::IAttenSysNftDispatcherTrait;
-    use core::starknet::{ContractAddress, get_caller_address, syscalls::deploy_syscall, ClassHash};
+    use core::starknet::{ContractAddress, get_caller_address, syscalls::deploy_syscall, ClassHash, contract_address_const};
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
         MutableVecTrait,
@@ -75,6 +79,8 @@ mod AttenSysCourse {
         hash: ClassHash,
         //admin address
         admin: ContractAddress,
+        // address of intended new admin
+        intended_new_admin: ContractAddress,
         //saves nft contract address associated to event
         course_nft_contract_address: Map::<u256, ContractAddress>,
         //tracks all minted nft id minted by events
@@ -314,10 +320,40 @@ mod AttenSysCourse {
         fn get_creator_info(self: @ContractState, creator: ContractAddress) -> Creator {
             self.course_creator_info.entry(creator).read()
         }
+
         fn get_course_nft_contract(
             self: @ContractState, course_identifier: u256,
         ) -> ContractAddress {
             self.course_nft_contract_address.entry(course_identifier).read()
+        }
+
+        fn transfer_admin(ref self: ContractState, new_admin: ContractAddress) {
+            assert(new_admin != self.zero_address(), 'zero address not allowed');
+            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+
+            self.intended_new_admin.write(new_admin);
+        }
+
+        fn claim_admin_ownership(ref self: ContractState) {
+            assert(get_caller_address() == self.intended_new_admin.read(), 'unauthorized caller');
+
+            self.admin.write(self.intended_new_admin.read());
+            self.intended_new_admin.write(self.zero_address());
+        }
+
+        fn get_admin(self: @ContractState) -> ContractAddress {
+            self.admin.read()
+        }
+
+        fn get_new_admin(self: @ContractState) -> ContractAddress {
+            self.intended_new_admin.read()
+        }
+    }
+
+    #[generate_trait]
+    impl InternalFunctions of InternalFunctionsTrait {
+        fn zero_address(self: @ContractState) -> ContractAddress {
+            contract_address_const::<0>()
         }
     }
 }

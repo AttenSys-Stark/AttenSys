@@ -19,10 +19,10 @@ use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcher;
 use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcherTrait;
 
 
-use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcher;
-use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
-use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;
-use attendsys::contracts::AttenSysSponsor::IERC20DispatcherTrait;
+// use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcher;
+// use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
+// use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;
+// use attendsys::contracts::AttenSysSponsor::IERC20DispatcherTrait;
 
 #[starknet::interface]
 pub trait IERC721<TContractState> {

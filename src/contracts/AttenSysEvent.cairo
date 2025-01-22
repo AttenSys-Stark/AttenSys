@@ -41,7 +41,10 @@ pub trait IAttenSysEvent<TContractState> {
     ) -> AttenSysEvent::EventStruct;
     fn get_event_nft_contract(self: @TContractState, event_identifier: u256) -> ContractAddress;
     fn get_all_events(self: @TContractState) -> Array<AttenSysEvent::EventStruct>;
-    //@todo function to transfer event ownership
+    fn transfer_admin(ref self: TContractState, new_admin: ContractAddress);
+    fn claim_admin_ownership(ref self: TContractState);
+    fn get_admin(self: @TContractState) -> ContractAddress;
+    fn get_new_admin(self: @TContractState) -> ContractAddress;
 }
 
 #[starknet::interface]
@@ -55,7 +58,7 @@ pub mod AttenSysEvent {
     use super::IAttenSysNftDispatcherTrait;
     use core::starknet::{
         ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
-        syscalls::deploy_syscall,
+        syscalls::deploy_syscall, contract_address_const
     };
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec,
@@ -140,6 +143,8 @@ pub mod AttenSysEvent {
         hash: ClassHash,
         //admin address
         admin: ContractAddress,
+        // address of intended new admin
+        intended_new_admin: ContractAddress,
         //saves nft contract address associated to event
         event_nft_contract_address: Map::<u256, ContractAddress>,
         //tracks all minted nft id minted by events
@@ -474,6 +479,28 @@ pub mod AttenSysEvent {
             };
             arr
         }
+
+        fn transfer_admin(ref self: ContractState, new_admin: ContractAddress) {
+            assert(new_admin != self.zero_address(), 'zero address not allowed');
+            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+
+            self.intended_new_admin.write(new_admin);
+        }
+
+        fn claim_admin_ownership(ref self: ContractState) {
+            assert(get_caller_address() == self.intended_new_admin.read(), 'unauthorized caller');
+
+            self.admin.write(self.intended_new_admin.read());
+            self.intended_new_admin.write(self.zero_address());
+        }
+
+        fn get_admin(self: @ContractState) -> ContractAddress {
+            self.admin.read()
+        }
+
+        fn get_new_admin(self: @ContractState) -> ContractAddress {
+            self.intended_new_admin.read()
+        }
     }
 
     #[generate_trait]
@@ -498,6 +525,10 @@ pub mod AttenSysEvent {
                     }
                 }
             }
+        }
+
+        fn zero_address(self: @ContractState) -> ContractAddress {
+            contract_address_const::<0>()
         }
     }
 }
