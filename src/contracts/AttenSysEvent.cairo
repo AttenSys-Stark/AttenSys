@@ -4,55 +4,6 @@ use core::starknet::{ContractAddress};
 
 //@todo look into computing an hash passcode, pass it in as an argument (at the point of creating
 //event), and make sure this hash can be confirmed.
-#[event]
-#[derive(Drop, Debug, PartialEq, starknet::Event)]
-enum Event {
-    EventCreated: EventCreated,
-    EventEnded: EventEnded,
-    AttendeeMarked: AttendeeMarked,
-    AttendeesCertified: AttendeesCertified,
-    AttendeeRegistered: AttendeeRegistered,
-    RegistrationStarted: RegistrationStarted,
-}
-
-#[derive(Drop, Debug, PartialEq, starknet::Event)]
-pub struct EventCreated {
-    pub owner: ContractAddress,
-    pub event_name: ByteArray,
-    pub base_uri: ByteArray,
-    pub name: ByteArray,
-    pub symbol: ByteArray,
-    pub start_time: u256,
-    pub end_time: u256,
-    pub reg_status: bool,
-}
-
-#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
-pub struct EventEnded {
-    pub event_identifier: u256,
-}
-
-#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
-pub struct AttendeeMarked {
-    pub event_identifier: u256,
-}
-
-#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
-pub struct AttendeesCertified {
-    pub event_identifier: u256,
-}
-
-#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
-pub struct AttendeeRegistered {
-    pub event_identifier: u256,
-}
-
-#[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
-pub struct RegistrationStarted {
-    pub event_identifier: u256,
-    pub reg_status: bool,
-}
-
 
 #[starknet::interface]
 pub trait IAttenSysEvent<TContractState> {
@@ -102,7 +53,6 @@ pub trait IAttenSysNft<TContractState> {
 #[starknet::contract]
 mod AttenSysEvent {
     use super::IAttenSysNftDispatcherTrait;
-    use super::Event;
     use core::starknet::{
         ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
         syscalls::deploy_syscall,
@@ -111,6 +61,56 @@ mod AttenSysEvent {
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec,
         MutableVecTrait, VecTrait,
     };
+
+
+    #[event]
+    #[derive(Drop, Debug, PartialEq, starknet::Event)]
+    pub enum Event {
+        EventCreated: EventCreated,
+        EventEnded: EventEnded,
+        AttendeeMarked: AttendeeMarked,
+        AttendeesCertified: AttendeesCertified,
+        AttendeeRegistered: AttendeeRegistered,
+        RegistrationStarted: RegistrationStarted,
+    }
+
+    #[derive(Drop, Debug, PartialEq, starknet::Event)]
+    pub struct EventCreated {
+        pub owner: ContractAddress,
+        pub event_name: ByteArray,
+        pub base_uri: ByteArray,
+        pub name: ByteArray,
+        pub symbol: ByteArray,
+        pub start_time: u256,
+        pub end_time: u256,
+        pub reg_status: bool,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct EventEnded {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct AttendeeMarked {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct AttendeesCertified {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct AttendeeRegistered {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct RegistrationStarted {
+        pub event_identifier: u256,
+        pub reg_status: bool,
+    }
 
 
     #[storage]
@@ -226,7 +226,7 @@ mod AttenSysEvent {
                 .entry(new_identifier)
                 .write(
                     EventStruct {
-                        event_name: event_name,
+                        event_name: event_name.clone(),
                         time: time_data,
                         active_status: true,
                         signature_count: 0,
@@ -257,6 +257,7 @@ mod AttenSysEvent {
         fn end_event(ref self: ContractState, event_identifier: u256) {
             //only event owner
             self.end_event_(event_identifier);
+            self.emit(Event::EventEnded(EventEnded { event_identifier }));
         }
 
         fn batch_certify_attendees(ref self: ContractState, event_identifier: u256) {
