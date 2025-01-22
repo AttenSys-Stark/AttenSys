@@ -286,23 +286,32 @@ fn test_create_event() {
         .create_event(
             owner_address,
             event_name.clone(),
-            token_uri,
-            nft_name,
-            nft_symb,
+            token_uri.clone(),
+            nft_name.clone(),
+            nft_symb.clone(),
             2238493,
             32989989,
             true,
         );
-        spy
+    spy
         .assert_emitted(
             @array![
                 (
                     contract_address,
-                    SpyEventsChecker::Event::FirstEvent(
-                        SpyEventsChecker::FirstEvent { some_data: 123 }
-                    )
-                )
-            ]
+                    AttenSysEvent::Event::EventCreated(
+                        AttenSysEvent::EventCreated {
+                            owner: owner_address,
+                            event_name: event_name.clone(),
+                            base_uri: token_uri,
+                            name: nft_name,
+                            symbol: nft_symb,
+                            start_time: 2238493,
+                            end_time: 32989989,
+                            reg_status: true,
+                        },
+                    ),
+                ),
+            ],
         );
     let event_details_check = dispatcher.get_event_details(1);
     assert(event_details_check.event_name == event_name, 'wrong_name');
