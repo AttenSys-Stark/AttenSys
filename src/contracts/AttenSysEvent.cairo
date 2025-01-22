@@ -109,7 +109,7 @@ mod AttenSysEvent {
     #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
     pub struct RegistrationStarted {
         pub event_identifier: u256,
-        pub reg_status: bool,
+        pub reg_stat: bool,
     }
 
 
@@ -454,7 +454,10 @@ mod AttenSysEvent {
                     }
                 }
             }
-            self.emit(Event::RegistrationStarted(RegistrationStarted { event_identifier, reg_stat }));
+            self
+                .emit(
+                    Event::RegistrationStarted(RegistrationStarted { event_identifier, reg_stat }),
+                );
         }
 
         fn get_event_details(self: @ContractState, event_identifier: u256) -> EventStruct {
