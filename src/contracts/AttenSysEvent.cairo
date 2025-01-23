@@ -54,7 +54,7 @@ pub trait IAttenSysNft<TContractState> {
 }
 
 #[starknet::contract]
-mod AttenSysEvent {
+pub mod AttenSysEvent {
     use super::IAttenSysNftDispatcherTrait;
     use core::starknet::{
         ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
@@ -84,8 +84,6 @@ mod AttenSysEvent {
         pub base_uri: ByteArray,
         pub name: ByteArray,
         pub symbol: ByteArray,
-        pub start_time: u256,
-        pub end_time: u256,
         pub reg_status: bool,
     }
 
@@ -249,8 +247,6 @@ mod AttenSysEvent {
                         base_uri: base_uri,
                         name: name_,
                         symbol: symbol,
-                        start_time: start_time_,
-                        end_time: end_time_,
                         reg_status: reg_status,
                     },
                 ),
