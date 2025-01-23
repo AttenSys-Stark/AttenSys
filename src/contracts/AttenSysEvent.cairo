@@ -66,6 +66,55 @@ mod AttenSysEvent {
     };
 
 
+    #[event]
+    #[derive(Drop, Debug, PartialEq, starknet::Event)]
+    pub enum Event {
+        EventCreated: EventCreated,
+        EventEnded: EventEnded,
+        AttendeeMarked: AttendeeMarked,
+        AttendeesCertified: AttendeesCertified,
+        AttendeeRegistered: AttendeeRegistered,
+        RegistrationStarted: RegistrationStarted,
+    }
+
+    #[derive(Drop, Debug, PartialEq, starknet::Event)]
+    pub struct EventCreated {
+        pub owner: ContractAddress,
+        pub event_name: ByteArray,
+        pub base_uri: ByteArray,
+        pub name: ByteArray,
+        pub symbol: ByteArray,
+        pub start_time: u256,
+        pub end_time: u256,
+        pub reg_status: bool,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct EventEnded {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct AttendeeMarked {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct AttendeesCertified {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct AttendeeRegistered {
+        pub event_identifier: u256,
+    }
+
+    #[derive(Copy, Drop, Debug, PartialEq, starknet::Event)]
+    pub struct RegistrationStarted {
+        pub event_identifier: u256,
+        pub reg_stat: bool,
+    }
+
     #[storage]
     struct Storage {
         //saves all event
