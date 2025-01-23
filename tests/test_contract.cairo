@@ -351,6 +351,8 @@ fn test_reg_nd_mark() {
     let attendee3_address: ContractAddress = contract_address_const::<'attendee3_address'>();
 
     let dispatcher = IAttenSysEventDispatcher { contract_address };
+    let mut spy = spy_events();
+
     start_cheat_caller_address(contract_address, owner_address);
     let token_uri: ByteArray = "https://dummy_uri.com/your_id";
     let event_name = "web3";
@@ -366,6 +368,19 @@ fn test_reg_nd_mark() {
     start_cheat_caller_address(contract_address, attendee1_address);
     dispatcher.register_for_event(1);
     dispatcher.mark_attendance(1);
+    spy
+    .assert_emitted(
+        @array![
+            (
+                contract_address,
+                AttenSysEvent::Event::AttendeeMarked(
+                    AttenSysEvent::AttendeeMarked {
+                        event_identifier: 1
+                    },
+                ),
+            ),
+        ],
+    );
     let all_events = dispatcher.get_all_attended_events(attendee1_address);
     assert(all_events.len() == 1, 'wrong length');
 
