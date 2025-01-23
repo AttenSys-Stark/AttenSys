@@ -591,7 +591,7 @@ mod AttenSysOrg {
                             arr_of_request.append(self.org_to_requests.entry(caller).at(i).read());
                             // update organization and instructor data
                             let mut org = self.organization_info.entry(caller).read();
-                            org.number_of_students += 1;
+                            org.number_of_students = org.number_of_students + 1;
                             self.organization_info.entry(caller).write(org);
                         };
             } else {
