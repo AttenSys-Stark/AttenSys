@@ -1,7 +1,7 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 // get_caller_address,
 use snforge_std::{
-    declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global
+    declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global, spy_events, EventSpyAssertionsTrait
 };
 
 
@@ -10,6 +10,7 @@ use snforge_std::{
 use attendsys::contracts::AttenSysCourse::IAttenSysCourseDispatcher;
 use attendsys::contracts::AttenSysCourse::IAttenSysCourseDispatcherTrait;
 
+use attendsys::contracts::AttenSysEvent::AttenSysEvent;
 use attendsys::contracts::AttenSysEvent::IAttenSysEventDispatcher;
 use attendsys::contracts::AttenSysEvent::IAttenSysEventDispatcherTrait;
 
@@ -274,6 +275,7 @@ fn test_create_event() {
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let owner_address_two: ContractAddress = contract_address_const::<'owner_two'>();
     let dispatcher = IAttenSysEventDispatcher { contract_address };
+    let mut spy = spy_events();
     let token_uri: ByteArray = "https://dummy_uri.com/your_id";
     let event_name = "web3";
     let nft_name = "onlydust";
@@ -283,14 +285,33 @@ fn test_create_event() {
         .create_event(
             owner_address,
             event_name.clone(),
-            token_uri,
-            nft_name,
-            nft_symb,
+            token_uri.clone(),
+            nft_name.clone(),
+            nft_symb.clone(),
             2238493,
             32989989,
             true
         );
+
     let event_details_check = dispatcher.get_event_details(1);
+    spy
+    .assert_emitted(
+        @array![
+            (
+                contract_address,
+                AttenSysEvent::Event::EventCreated(
+                    AttenSysEvent::EventCreated { 
+                        owner: owner_address,                            
+                        event_name: event_name.clone(),
+                        base_uri: token_uri,
+                        name: nft_name,
+                        symbol: nft_symb, 
+                        reg_status: true,
+                    }
+                )
+            )
+        ]
+    );
     assert(event_details_check.event_name == event_name, 'wrong_name');
     assert(event_details_check.time.registration_open == true, 'not set');
     assert(event_details_check.time.start_time == 2238493, 'wrong start');
@@ -313,9 +334,9 @@ fn test_create_event() {
             32989989,
             true
         );
-
     let event_details_check_two = dispatcher.get_event_details(2);
     assert(event_details_check_two.event_name == event_name_two, 'wrong_name');
+    
 }
 
 #[test]
@@ -328,6 +349,8 @@ fn test_reg_nd_mark() {
     let attendee3_address: ContractAddress = contract_address_const::<'attendee3_address'>();
 
     let dispatcher = IAttenSysEventDispatcher { contract_address };
+    let mut spy = spy_events();
+
     start_cheat_caller_address(contract_address, owner_address);
     let token_uri: ByteArray = "https://dummy_uri.com/your_id";
     let event_name = "web3";
@@ -343,19 +366,53 @@ fn test_reg_nd_mark() {
     start_cheat_caller_address(contract_address, attendee1_address);
     dispatcher.register_for_event(1);
     dispatcher.mark_attendance(1);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    AttenSysEvent::Event::AttendeeMarked(
+                        AttenSysEvent::AttendeeMarked { event_identifier: 1 },
+                    ),
+                ),
+            ],
+        );
     let all_events = dispatcher.get_all_attended_events(attendee1_address);
     assert(all_events.len() == 1, 'wrong length');
 
     start_cheat_caller_address(contract_address, attendee2_address);
     dispatcher.register_for_event(1);
+
     dispatcher.mark_attendance(1);
 
     start_cheat_caller_address(contract_address, attendee3_address);
     dispatcher.register_for_event(1);
+    spy
+    .assert_emitted(
+        @array![
+            (
+                contract_address,
+                AttenSysEvent::Event::AttendeeRegistered(
+                    AttenSysEvent::AttendeeRegistered { event_identifier: 1 },
+                ),
+            ),
+        ],
+    );
     dispatcher.mark_attendance(1);
 
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.batch_certify_attendees(1);
+    spy
+    .assert_emitted(
+        @array![
+            (
+                contract_address,
+                AttenSysEvent::Event::AttendeesCertified(
+                    AttenSysEvent::AttendeesCertified { event_identifier: 1 },
+                ),
+            ),
+        ],
+    );
 
     let nftContract = dispatcher.get_event_nft_contract(1);
 
