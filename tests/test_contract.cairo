@@ -369,18 +369,16 @@ fn test_reg_nd_mark() {
     dispatcher.register_for_event(1);
     dispatcher.mark_attendance(1);
     spy
-    .assert_emitted(
-        @array![
-            (
-                contract_address,
-                AttenSysEvent::Event::AttendeeMarked(
-                    AttenSysEvent::AttendeeMarked {
-                        event_identifier: 1
-                    },
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    AttenSysEvent::Event::AttendeeMarked(
+                        AttenSysEvent::AttendeeMarked { event_identifier: 1 },
+                    ),
                 ),
-            ),
-        ],
-    );
+            ],
+        );
     let all_events = dispatcher.get_all_attended_events(attendee1_address);
     assert(all_events.len() == 1, 'wrong length');
 
@@ -394,6 +392,137 @@ fn test_reg_nd_mark() {
 
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.batch_certify_attendees(1);
+
+    let nftContract = dispatcher.get_event_nft_contract(1);
+
+    let erc721_token = IERC721Dispatcher { contract_address: nftContract };
+    let token_name = erc721_token.name();
+
+    assert(erc721_token.owner_of(1) == attendee1_address, 'wrong 1 token id');
+    assert(erc721_token.owner_of(2) == attendee2_address, 'wrong 2 token id');
+    assert(erc721_token.owner_of(3) == attendee3_address, 'wrong 3 token id');
+    assert(token_name == "onlydust", 'wrong token name');
+    let attendance_stat = dispatcher.get_attendance_status(attendee3_address, 1);
+    assert(attendance_stat == true, 'wrong attenStat');
+}
+
+
+#[test]
+fn test_event_reg_nd_mark_attendee_redistered() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let contract_address = deploy_contract("AttenSysEvent", hash);
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let attendee1_address: ContractAddress = contract_address_const::<'attendee1_address'>();
+    let attendee2_address: ContractAddress = contract_address_const::<'attendee2_address'>();
+    let attendee3_address: ContractAddress = contract_address_const::<'attendee3_address'>();
+
+    let dispatcher = IAttenSysEventDispatcher { contract_address };
+    let mut spy = spy_events();
+
+    start_cheat_caller_address(contract_address, owner_address);
+    let token_uri: ByteArray = "https://dummy_uri.com/your_id";
+    let event_name = "web3";
+    let nft_name = "onlydust";
+    let nft_symb = "OD";
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher
+        .create_event(
+            owner_address, event_name.clone(), token_uri, nft_name, nft_symb, 223, 329, true,
+        );
+
+    start_cheat_block_timestamp_global(55555);
+    start_cheat_caller_address(contract_address, attendee1_address);
+    dispatcher.register_for_event(1);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    AttenSysEvent::Event::AttendeeRegistered(
+                        AttenSysEvent::AttendeeRegistered { event_identifier: 1 },
+                    ),
+                ),
+            ],
+        );
+    dispatcher.mark_attendance(1);
+    let all_events = dispatcher.get_all_attended_events(attendee1_address);
+    assert(all_events.len() == 1, 'wrong length');
+
+    start_cheat_caller_address(contract_address, attendee2_address);
+    dispatcher.register_for_event(1);
+    dispatcher.mark_attendance(1);
+
+    start_cheat_caller_address(contract_address, attendee3_address);
+    dispatcher.register_for_event(1);
+    dispatcher.mark_attendance(1);
+
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.batch_certify_attendees(1);
+
+    let nftContract = dispatcher.get_event_nft_contract(1);
+
+    let erc721_token = IERC721Dispatcher { contract_address: nftContract };
+    let token_name = erc721_token.name();
+
+    assert(erc721_token.owner_of(1) == attendee1_address, 'wrong 1 token id');
+    assert(erc721_token.owner_of(2) == attendee2_address, 'wrong 2 token id');
+    assert(erc721_token.owner_of(3) == attendee3_address, 'wrong 3 token id');
+    assert(token_name == "onlydust", 'wrong token name');
+    let attendance_stat = dispatcher.get_attendance_status(attendee3_address, 1);
+    assert(attendance_stat == true, 'wrong attenStat');
+}
+
+#[test]
+fn test_event_reg_nd_mark() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let contract_address = deploy_contract("AttenSysEvent", hash);
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let attendee1_address: ContractAddress = contract_address_const::<'attendee1_address'>();
+    let attendee2_address: ContractAddress = contract_address_const::<'attendee2_address'>();
+    let attendee3_address: ContractAddress = contract_address_const::<'attendee3_address'>();
+
+    let dispatcher = IAttenSysEventDispatcher { contract_address };
+    let mut spy = spy_events();
+
+    start_cheat_caller_address(contract_address, owner_address);
+    let token_uri: ByteArray = "https://dummy_uri.com/your_id";
+    let event_name = "web3";
+    let nft_name = "onlydust";
+    let nft_symb = "OD";
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher
+        .create_event(
+            owner_address, event_name.clone(), token_uri, nft_name, nft_symb, 223, 329, true,
+        );
+
+    start_cheat_block_timestamp_global(55555);
+    start_cheat_caller_address(contract_address, attendee1_address);
+    dispatcher.register_for_event(1);
+    dispatcher.mark_attendance(1);
+    let all_events = dispatcher.get_all_attended_events(attendee1_address);
+    assert(all_events.len() == 1, 'wrong length');
+
+    start_cheat_caller_address(contract_address, attendee2_address);
+    dispatcher.register_for_event(1);
+    dispatcher.mark_attendance(1);
+
+    start_cheat_caller_address(contract_address, attendee3_address);
+    dispatcher.register_for_event(1);
+    dispatcher.mark_attendance(1);
+
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.batch_certify_attendees(1);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    AttenSysEvent::Event::AttendeesCertified(
+                        AttenSysEvent::AttendeesCertified { event_identifier: 1 },
+                    ),
+                ),
+            ],
+        );
 
     let nftContract = dispatcher.get_event_nft_contract(1);
 
@@ -628,7 +757,7 @@ fn test_sponsor() {
     let contract_owner_address: ContractAddress = contract_address_const::<
         'contract_owner_address',
     >();
-    // // set the organization address to the original contract address
+// // set the organization address to the original contract address
 // let sponsor_contract_addr = deploy_sponsorship_contract(
 //     "AttenSysSponsor", contract_owner_address
 // );
@@ -636,7 +765,7 @@ fn test_sponsor() {
 //     contract_address: sponsor_contract_addr
 // };
 
-    // let owner_address: ContractAddress = contract_address_const::<'owner'>();
+// let owner_address: ContractAddress = contract_address_const::<'owner'>();
 // let dispatcher = IAttenSysOrgDispatcher { contract_address };
 // start_cheat_caller_address(contract_address, owner_address);
 // let org_name: ByteArray = "web3";
@@ -644,12 +773,12 @@ fn test_sponsor() {
 // dispatcher.create_org_profile(org_name.clone(), org_ipfs_uri);
 // dispatcher.setSponsorShipAddress(sponsor_contract_addr);
 
-    // let dispatcherForToken =IERC20Dispatcher {
+// let dispatcherForToken =IERC20Dispatcher {
 //     contract_address: token_addr
 // };
 // dispatcherForToken.approve(contract_address,100000);
 
-    // dispatcher.sponsor_organization(owner_address, "bsvjsbbsxjkjk", 100000);
+// dispatcher.sponsor_organization(owner_address, "bsvjsbbsxjkjk", 100000);
 }
 
 
