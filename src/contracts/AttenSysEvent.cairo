@@ -230,7 +230,7 @@ mod AttenSysEvent {
                 .entry(new_identifier)
                 .write(
                     EventStruct {
-                        event_name: event_name,
+                        event_name: event_name.clone(),
                         time: time_data,
                         active_status: true,
                         signature_count: 0,
@@ -240,6 +240,21 @@ mod AttenSysEvent {
                 );
             self.event_identifier.write(new_identifier);
             self.track_minted_nft_id.entry((new_identifier, deployed_contract_address)).write(1);
+            self
+            .emit(
+                Event::EventCreated(
+                    EventCreated {
+                        owner: owner_,
+                        event_name: event_name,
+                        base_uri: base_uri,
+                        name: name_,
+                        symbol: symbol,
+                        start_time: start_time_,
+                        end_time: end_time_,
+                        reg_status: reg_status,
+                    },
+                ),
+            );
             deployed_contract_address
         }
 
