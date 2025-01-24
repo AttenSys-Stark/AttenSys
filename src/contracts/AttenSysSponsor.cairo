@@ -38,6 +38,18 @@ mod AttenSysSponsor {
         attenSysEvent: ContractAddress,
     }
 
+    #[event]
+    #[derive(Drop, Debug, PartialEq, starknet::Event)]
+    pub enum Event {
+        SponsorDeposited: SponsorDeposited
+    }
+
+    #[derive(Drop, Debug, PartialEq, starknet::Event)]
+    pub struct SponsorDeposited {
+        pub token: ContractAddress,
+        pub amount: u256,
+    }
+
     #[constructor]
     fn constructor(
         ref self: ContractState,
@@ -64,6 +76,12 @@ mod AttenSysSponsor {
                 .transferFrom(sender: caller, recipient: get_contract_address(), amount: amount);
 
             if has_transferred {
+                self
+                    .emit(
+                        Event::SponsorDeposited(
+                            SponsorDeposited { token: token_address, amount: amount }
+                        )
+                    );
                 self.balances.write(token_address, self.balances.read(token_address) + amount)
             }
         }
