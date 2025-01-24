@@ -752,10 +752,10 @@ fn test_deposit_event_emitted() {
     start_cheat_caller_address(contract_address, owner_address);
     let org_name: ByteArray = "web3";
     let org_ipfs_uri: ByteArray = "web3";
-    dispatcher.create_org_profile(org_name.clone(), org_ipfs_uri);
+    //dispatcher.create_org_profile(org_name.clone(), org_ipfs_uri);
     dispatcher.setSponsorShipAddress(sponsor_contract_addr);
     let dispatcherForToken = IERC20Dispatcher { contract_address: token_addr };
-    //dispatcherForToken.approve(contract_address, 100000);
+    dispatcherForToken.approve(contract_address, 100000);
 
     dispatcher.sponsor_organization(owner_address, "bsvjsbbsxjkjk", 100000);
     dispatcherForSponsor.deposit(token_addr, 10);
