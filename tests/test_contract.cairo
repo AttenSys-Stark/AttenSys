@@ -757,7 +757,8 @@ fn test_deposit_event_emitted() {
     let dispatcherForToken = IERC20Dispatcher { contract_address: token_addr };
     dispatcherForToken.approve(contract_address, 100000);
 
-    dispatcherForSponsor.deposit(token_addr, 10);
+    dispatcher.sponsor_organization(owner_address, "bsvjsbbsxjkjk", 100000);
+    //dispatcherForSponsor.deposit(token_addr, 10);
 }
 
 
