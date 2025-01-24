@@ -23,7 +23,7 @@ pub trait IAttenSysSponsor<TContractState> {
 }
 
 #[starknet::contract]
-mod AttenSysSponsor {
+pub mod AttenSysSponsor {
     use core::num::traits::Zero;
     use attendsys::contracts::AttenSysSponsor::IERC20DispatcherTrait;
     use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;

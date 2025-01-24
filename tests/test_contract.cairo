@@ -1,7 +1,7 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 // get_caller_address,
 use snforge_std::{
-    declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global
+    declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global, spy_events, EventSpyAssertionsTrait
 };
 
 
@@ -16,7 +16,7 @@ use attendsys::contracts::AttenSysEvent::IAttenSysEventDispatcherTrait;
 use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcher;
 use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcherTrait;
 
-
+use attendsys::contracts::AttenSysSponsor::AttenSysSponsor;
 use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcher;
 use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
 use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;
@@ -741,6 +741,8 @@ fn test_deposit_event_emitted() {
     let contract_owner_address: ContractAddress = contract_address_const::<
         'contract_owner_address'
     >();
+    let mut spy = spy_events();
+
     let sponsor_contract_addr = deploy_sponsorship_contract(
         "AttenSysSponsor", contract_owner_address
     );
@@ -758,7 +760,22 @@ fn test_deposit_event_emitted() {
     dispatcherForToken.approve(contract_address, 100000);
 
     dispatcher.sponsor_organization(owner_address, "bsvjsbbsxjkjk", 100000);
-    //dispatcherForSponsor.deposit(token_addr, 10);
+    dispatcherForSponsor.deposit(token_addr, 10);
+
+    spy
+    .assert_emitted(
+        @array![
+            (
+                sponsor_contract_addr,
+                AttenSysSponsor::Event::SponsorDeposited(
+                    AttenSysSponsor::SponsorDeposited { 
+                        token: token_addr,
+                        amount: 10
+                    }
+                )
+            )
+        ]
+    );
 }
 
 
