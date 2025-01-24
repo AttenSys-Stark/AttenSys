@@ -1,9 +1,6 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 use snforge_std::{
-    declare,
-    ContractClassTrait,
-    start_cheat_caller_address,
-    stop_cheat_caller_address
+    declare, ContractClassTrait, start_cheat_caller_address, stop_cheat_caller_address
 };
 
 use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
@@ -80,7 +77,10 @@ fn test_claim_admin() {
     start_cheat_caller_address(contract_address, new_admin);
     attensys_course_contract.claim_admin_ownership();
     assert(attensys_course_contract.get_admin() == new_admin, 'admin claim failed');
-    assert(attensys_course_contract.get_new_admin() == contract_address_const::<0>(), 'admin claim failed');
+    assert(
+        attensys_course_contract.get_new_admin() == contract_address_const::<0>(),
+        'admin claim failed'
+    );
     stop_cheat_caller_address(contract_address);
 }
 
@@ -94,7 +94,6 @@ fn test_transfer_admin_should_panic_for_wrong_admin() {
     let new_admin: ContractAddress = contract_address_const::<'new_admin'>();
 
     let attensys_course_contract = IAttenSysEventDispatcher { contract_address };
-
 
     // Wrong admin transfers admin rights to new_admin: should revert
     start_cheat_caller_address(contract_address, invalid_admin);

@@ -52,13 +52,55 @@ pub trait IAttenSysNft<TContractState> {
 }
 
 #[starknet::contract]
-mod AttenSysCourse {
+pub mod AttenSysCourse {
     use super::IAttenSysNftDispatcherTrait;
-    use core::starknet::{ContractAddress, get_caller_address, syscalls::deploy_syscall, ClassHash, contract_address_const};
+    use core::starknet::{
+        ContractAddress, get_caller_address, syscalls::deploy_syscall, ClassHash,
+        contract_address_const
+    };
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
         MutableVecTrait
     };
+
+
+    #[event]
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub enum Event {
+        CourseCreated: CourseCreated,
+        CourseReplaced: CourseReplaced,
+        CourseCertClaimed: CourseCertClaimed,
+        AdminTransferred: AdminTransferred,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct CourseCreated {
+        pub course_identifier: u256,
+        pub owner_: ContractAddress,
+        pub accessment_: bool,
+        pub base_uri: ByteArray,
+        pub name_: ByteArray,
+        pub symbol: ByteArray,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct CourseReplaced {
+        pub course_identifier: u256,
+        pub owner_: ContractAddress,
+        pub new_course_uri_a: felt252,
+        pub new_course_uri_b: felt252,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct CourseCertClaimed {
+        pub course_identifier: u256,
+        pub candidate: ContractAddress,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct AdminTransferred {
+        pub new_admin: ContractAddress,
+    }
 
     #[storage]
     struct Storage {
@@ -175,6 +217,17 @@ mod AttenSysCourse {
                 .entry(current_identifier)
                 .write(deployed_contract_address);
 
+            self
+                .emit(
+                    CourseCreated {
+                        course_identifier: current_identifier,
+                        owner_: owner_,
+                        accessment_: accessment_,
+                        base_uri: base_uri,
+                        name_: name_,
+                        symbol: symbol,
+                    }
+                );
             deployed_contract_address
         }
 
@@ -235,7 +288,16 @@ mod AttenSysCourse {
                     self.creator_to_all_content.entry(owner_).at(i).uri.write(call_data);
                 }
                 i += 1;
-            }
+            };
+            self
+                .emit(
+                    CourseReplaced {
+                        course_identifier: course_identifier,
+                        owner_: owner_,
+                        new_course_uri_a: new_course_uri_a,
+                        new_course_uri_b: new_course_uri_b,
+                    }
+                );
         }
 
         fn finish_course_claim_certification(ref self: ContractState, course_identifier: u256) {
@@ -263,6 +325,12 @@ mod AttenSysCourse {
                 .track_minted_nft_id
                 .entry((course_identifier, nft_contract_address))
                 .write(nft_id + 1);
+            self
+                .emit(
+                    CourseCertClaimed {
+                        course_identifier: course_identifier, candidate: get_caller_address(),
+                    }
+                );
         }
 
 
@@ -341,6 +409,7 @@ mod AttenSysCourse {
             assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
 
             self.intended_new_admin.write(new_admin);
+            self.emit(AdminTransferred { new_admin: new_admin });
         }
 
         fn claim_admin_ownership(ref self: ContractState) {
