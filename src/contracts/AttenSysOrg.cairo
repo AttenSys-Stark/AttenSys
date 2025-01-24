@@ -91,9 +91,12 @@ pub trait IAttenSysOrg<TContractState> {
     ) -> AttenSysOrg::Bootcamp;
 }
 
+// Events
+
 //The contract
 #[starknet::contract]
-mod AttenSysOrg {
+pub mod AttenSysOrg {
+    use starknet::event::EventEmitter;
     use core::starknet::{ContractAddress, ClassHash, get_caller_address, syscalls::deploy_syscall};
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
@@ -205,7 +208,20 @@ mod AttenSysOrg {
     #[derive(Drop, starknet::Event)]
     pub enum Event {
         Sponsor: Sponsor,
-        Withdrawn: Withdrawn
+        Withdrawn: Withdrawn,
+        OrganizationProfile: OrganizationProfile,
+        InstructorAddedToOrg: InstructorAddedToOrg,
+        InstructorRemovedFromOrg: InstructorRemovedFromOrg,
+        BootCampCreated: BootCampCreated,
+        ActiveMeetLinkAdded: ActiveMeetLinkAdded,
+        VideoLinkUploaded: VideoLinkUploaded,
+        BootcampRegistration: BootcampRegistration,
+        RegistrationApproved: RegistrationApproved,
+        AttendanceMarked: AttendanceMarked,
+        StudentsCertified: StudentsCertified,
+        SponsorshipAddressSet: SponsorshipAddressSet,
+        OrganizationSponsored: OrganizationSponsored,
+        SponsorshipFundWithdrawn: SponsorshipFundWithdrawn
     }
 
     #[derive(Drop, starknet::Event)]
@@ -222,6 +238,100 @@ mod AttenSysOrg {
         #[key]
         pub organization: ContractAddress,
     }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct OrganizationProfile {
+        pub org_name: ByteArray,
+        pub org_ipfs_uri: ByteArray,
+        //     #[key]
+    //     pub organization: ContractAddress
+    // }
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct InstructorAddedToOrg {
+        pub org_name: ByteArray,
+        #[key]
+        pub instructor: Array<ContractAddress>
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct InstructorRemovedFromOrg {
+        pub instructor_addr: ContractAddress,
+        pub org_owner: ContractAddress
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct BootCampCreated {
+        pub org_name: ByteArray,
+        pub bootcamp_name: ByteArray,
+        pub nft_name: ByteArray,
+        pub nft_symbol: ByteArray,
+        pub nft_uri: ByteArray,
+        pub num_of_classes: u256,
+        pub bootcamp_ipfs_uri: ByteArray,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct ActiveMeetLinkAdded {
+        pub meet_link: ByteArray,
+        pub bootcamp_id: u64,
+        pub is_instructor: bool,
+        pub org_address: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct VideoLinkUploaded {
+        pub video_link: ByteArray,
+        pub is_instructor: bool,
+        pub org_address: ContractAddress,
+        pub bootcamp_id: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct BootcampRegistration {
+        pub org_address: ContractAddress,
+        pub instructor_address: ContractAddress,
+        pub bootcamp_id: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct RegistrationApproved {
+        pub student_address: ContractAddress,
+        pub bootcamp_id: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct AttendanceMarked {
+        pub org_address: ContractAddress,
+        pub instructor_address: ContractAddress,
+        pub class_id: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct StudentsCertified {
+        pub org_address: ContractAddress,
+        pub class_id: u64,
+        pub student_addresses: Array<ContractAddress>,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct SponsorshipAddressSet {
+        pub sponsor_contract_address: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct OrganizationSponsored {
+        pub organization_address: ContractAddress,
+        pub sponsor_uri: ByteArray,
+        pub sponsorship_amount: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct SponsorshipFundWithdrawn {
+        pub withdrawal_amount: u256,
+    }
+
 
     #[constructor]
     fn constructor(
@@ -262,6 +372,8 @@ mod AttenSysOrg {
                     total_sponsorship_fund: 0,
                 };
 
+                let uri = org_ipfs_uri.clone();
+
                 self.all_org_info.append().write(org_call_data);
                 self
                     .organization_info
@@ -278,6 +390,9 @@ mod AttenSysOrg {
                             total_sponsorship_fund: 0,
                         }
                     );
+                let orginization_name = org_name.clone();
+
+                self.emit(OrganizationProfile { org_name: orginization_name, org_ipfs_uri: uri });
                 // add the organization creator as an instructor
                 add_instructor_to_org(ref self, creator, creator, org_name);
             } else {
@@ -299,7 +414,11 @@ mod AttenSysOrg {
                             add_instructor_to_org(
                                 ref self, caller, *instructor[i], org_name.clone()
                             );
-                        }
+                        };
+                self
+                    .emit(
+                        InstructorAddedToOrg { org_name: org_name.clone(), instructor: instructor }
+                    )
             } else {
                 panic!("no organization created.");
             }
@@ -347,6 +466,14 @@ mod AttenSysOrg {
                                         .at(i)
                                         .write(lastInstructor);
                                 }
+
+                                // Event ng for removing an inspector
+                                self
+                                    .emit(
+                                        InstructorRemovedFromOrg {
+                                            instructor_addr: instructor, org_owner: caller
+                                        }
+                                    )
                             }
                 } else {
                     panic!("not an instructor.");
@@ -367,9 +494,10 @@ mod AttenSysOrg {
             bootcamp_id: u64
         ) {
             assert(video_link != "", 'empty link');
+            let video_link_cp = video_link.clone();
             let mut status: bool = false;
             let caller = get_caller_address();
-
+            let is_instructor_cp = is_instructor.clone();
             if is_instructor {
                 status = self.instructor_part_of_org.entry((org_address, caller)).read();
             } else {
@@ -392,6 +520,16 @@ mod AttenSysOrg {
                         .append()
                         .write(video_link);
                 }
+
+                self
+                    .emit(
+                        VideoLinkUploaded {
+                            video_link: video_link_cp,
+                            is_instructor: is_instructor_cp,
+                            org_address: org_address,
+                            bootcamp_id: bootcamp_id
+                        }
+                    );
             } else {
                 panic!("not part of organization.");
             };
@@ -463,6 +601,19 @@ mod AttenSysOrg {
                 org_call_data.number_of_all_bootcamps += 1;
                 self.organization_info.entry(caller).write(org_call_data);
 
+                // Emmiting a Bootcamp Event
+                self
+                    .emit(
+                        BootCampCreated {
+                            org_name: org_name,
+                            bootcamp_name: bootcamp_name,
+                            nft_name: nft_name,
+                            nft_symbol: nft_symbol,
+                            nft_uri: nft_uri,
+                            num_of_classes: num_of_class_to_create,
+                            bootcamp_ipfs_uri: bootcamp_ipfs_uri
+                        }
+                    );
                 //create classes
                 create_a_class(ref self, caller, num_of_class_to_create, index);
             } else {
@@ -479,7 +630,8 @@ mod AttenSysOrg {
         ) {
             let mut status: bool = false;
             let caller = get_caller_address();
-
+            let active_link = meet_link.clone();
+            let is_instructor_cp = is_instructor.clone();
             if is_instructor {
                 status = self.instructor_part_of_org.entry((org_address, caller)).read();
             } else {
@@ -503,9 +655,26 @@ mod AttenSysOrg {
                         .entry(caller)
                         .at(bootcamp_id)
                         .read();
+
                     bootcamp.active_meet_link = meet_link;
                     self.org_to_bootcamps.entry(caller).at(bootcamp_id).write(bootcamp);
                 }
+                // pub meet_link: ByteArray,
+                // pub bootcamp_id: u64,
+                // pub is_instructor: bool,
+                // pub org_address: ContractAddress,
+
+                // Emitting events when a active link is added
+
+                self
+                    .emit(
+                        ActiveMeetLinkAdded {
+                            meet_link: active_link,
+                            bootcamp_id: bootcamp_id.clone(),
+                            is_instructor: is_instructor_cp,
+                            org_address: org_address
+                        }
+                    );
             } else {
                 panic!("not part of organization.");
             };
@@ -548,7 +717,16 @@ mod AttenSysOrg {
                                         }
                                     );
                             }
+                        };
+
+                self
+                    .emit(
+                        BootcampRegistration {
+                            org_address: org_,
+                            instructor_address: instructor_,
+                            bootcamp_id: bootcamp_id
                         }
+                    );
             } else {
                 panic!("unassociated org N instructor");
             }
@@ -594,6 +772,13 @@ mod AttenSysOrg {
                             org.number_of_students = org.number_of_students + 1;
                             self.organization_info.entry(caller).write(org);
                         };
+
+                self
+                    .emit(
+                        RegistrationApproved {
+                            student_address: student_address, bootcamp_id: bootcamp_id
+                        }
+                    );
             } else {
                 panic!("no organization created.");
             }
@@ -621,6 +806,12 @@ mod AttenSysOrg {
             assert(instructor_class.active_status, 'not a class');
             assert(!reg_status, 'not registered student');
             self.student_attendance_status.entry((caller, class_id)).write(true);
+            self
+                .emit(
+                    AttendanceMarked {
+                        org_address: org_, instructor_address: instructor_, class_id: class_id
+                    }
+                );
         }
 
         fn batch_certify_students(
@@ -648,6 +839,12 @@ mod AttenSysOrg {
                         }
                     }
             }
+            self
+                .emit(
+                    StudentsCertified {
+                        org_address: org_, class_id: class_id, student_addresses: students
+                    }
+                )
         }
 
         fn setSponsorShipAddress(
@@ -656,6 +853,7 @@ mod AttenSysOrg {
             only_admin(ref self);
             assert(!sponsor_contract_address.is_zero(), 'Null address not allowed');
             self.sponsorship_contract_address.write(sponsor_contract_address);
+            self.emit(SponsorshipAddressSet { sponsor_contract_address });
         }
 
         fn sponsor_organization(
