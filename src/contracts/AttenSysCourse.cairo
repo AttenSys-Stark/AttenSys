@@ -40,6 +40,7 @@ pub trait IAttenSysCourse<TContractState> {
     fn claim_admin_ownership(ref self: TContractState);
     fn get_admin(self: @TContractState) -> ContractAddress;
     fn get_new_admin(self: @TContractState) -> ContractAddress;
+    fn get_total_course_completions(self: @TContractState, course_identifier: u256) -> u256;
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -355,6 +356,17 @@ mod AttenSysCourse {
 
         fn get_new_admin(self: @ContractState) -> ContractAddress {
             self.intended_new_admin.read()
+        }
+
+        fn get_total_course_completions(self: @ContractState, course_identifier: u256) -> u256 {
+            let nft_contract_address = self.course_nft_contract_address.entry(course_identifier).read();
+            let next_nft_id = self.track_minted_nft_id.entry((course_identifier, nft_contract_address)).read();
+            
+            if next_nft_id <= 1 {
+                0
+            } else {
+                next_nft_id - 1
+            }
         }
     }
 
