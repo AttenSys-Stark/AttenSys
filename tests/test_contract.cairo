@@ -751,7 +751,7 @@ fn test_deposit_event_emitted() {
     let dispatcher = IAttenSysOrgDispatcher { contract_address };
     start_cheat_caller_address(contract_address, owner_address);
     let org_name: ByteArray = "web3";
-    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    let org_ipfs_uri: ByteArray = "0xmcjjmdnweb3";
     dispatcher.create_org_profile(org_name.clone(), org_ipfs_uri);
     dispatcher.setSponsorShipAddress(sponsor_contract_addr);
     let dispatcherForToken = IERC20Dispatcher { contract_address: token_addr };
