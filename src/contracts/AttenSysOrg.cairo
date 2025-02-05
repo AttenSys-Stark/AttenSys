@@ -887,7 +887,10 @@ pub mod AttenSysOrg {
                     'insufficient funds'
                 );
                 let contract_address = self.token_address.read();
-                let sponsor_dispatcher = IAttenSysSponsorDispatcher { contract_address };
+                let sponsor_contract_address = self.sponsorship_contract_address.read();
+                let sponsor_dispatcher = IAttenSysSponsorDispatcher {
+                    contract_address: sponsor_contract_address
+                };
                 sponsor_dispatcher.withdraw(contract_address, amt);
 
                 let balanceBefore = self.org_to_balance_of_sponsorship.entry(organization).read();

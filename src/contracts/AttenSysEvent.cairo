@@ -45,6 +45,8 @@ pub trait IAttenSysEvent<TContractState> {
     fn claim_admin_ownership(ref self: TContractState);
     fn get_admin(self: @TContractState) -> ContractAddress;
     fn get_new_admin(self: @TContractState) -> ContractAddress;
+    fn sponsor_event(ref self: TContractState, event: ContractAddress, amt: u256, uri: ByteArray);
+    fn withdraw_sponsorship_funds(ref self: TContractState, amt: u256);
 }
 
 #[starknet::interface]
@@ -55,6 +57,7 @@ pub trait IAttenSysNft<TContractState> {
 
 #[starknet::contract]
 mod AttenSysEvent {
+    use core::num::traits::Zero;
     use super::IAttenSysNftDispatcherTrait;
     use core::starknet::{
         ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
@@ -63,6 +66,9 @@ mod AttenSysEvent {
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec,
         MutableVecTrait, VecTrait
+    };
+    use attendsys::contracts::AttenSysSponsor::{
+        IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait
     };
 
 
@@ -99,6 +105,16 @@ mod AttenSysEvent {
         event_nft_contract_address: Map::<u256, ContractAddress>,
         //tracks all minted nft id minted by events
         track_minted_nft_id: Map::<(u256, ContractAddress), u256>,
+        // event to balance_of_sponsorship
+        event_to_balance_of_sponsorship: Map::<ContractAddress, u256>,
+        // event to list of sponsors
+        event_to_list_of_sponsors: Map::<ContractAddress, Vec<ContractAddress>>,
+        // the currency used on the platform
+        token_address: ContractAddress,
+        // sponsorship contract address
+        sponsorship_contract_address: ContractAddress,
+        // tracks existing events
+        event_exists: Map::<ContractAddress, bool>
     }
 
     //create a separate struct for the all_attended_event that will only have the time the event
@@ -126,10 +142,40 @@ mod AttenSysEvent {
         pub time: u256,
     }
 
+    #[event]
+    #[derive(Drop, starknet::Event)]
+    pub enum Event {
+        Sponsor: Sponsor,
+        Withdrawn: Withdrawn
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct Sponsor {
+        pub amt: u256,
+        pub uri: ByteArray,
+        #[key]
+        pub event: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct Withdrawn {
+        pub amt: u256,
+        #[key]
+        pub event: ContractAddress,
+    }
+
     #[constructor]
-    fn constructor(ref self: ContractState, owner: ContractAddress, _hash: ClassHash) {
+    fn constructor(
+        ref self: ContractState,
+        owner: ContractAddress,
+        _hash: ClassHash,
+        _token_address: ContractAddress,
+        sponsorship_contract_address: ContractAddress
+    ) {
         self.admin.write(owner);
         self.hash.write(_hash);
+        self.token_address.write(_token_address);
+        self.sponsorship_contract_address.write(sponsorship_contract_address);
     }
 
 
@@ -191,6 +237,7 @@ mod AttenSysEvent {
                 );
             self.event_identifier.write(new_identifier);
             self.track_minted_nft_id.entry((new_identifier, deployed_contract_address)).write(1);
+            self.event_exists.entry(owner_).write(true);
             deployed_contract_address
         }
 
@@ -440,6 +487,66 @@ mod AttenSysEvent {
 
         fn get_new_admin(self: @ContractState) -> ContractAddress {
             self.intended_new_admin.read()
+        }
+
+        fn sponsor_event(
+            ref self: ContractState, event: ContractAddress, amt: u256, uri: ByteArray
+        ) {
+            assert(!event.is_zero(), 'not an event');
+            assert(uri.len() > 0, 'uri is empty');
+            // check if such event exists
+            assert(self.event_exists.entry(event).read(), 'No such event');
+            assert(amt > 0, 'Invalid amount');
+            let sponsor = get_caller_address();
+            let balance = self.event_to_balance_of_sponsorship.entry(event).read();
+            let sponsor_contract_address = self.sponsorship_contract_address.read();
+            let token_address = self.token_address.read();
+            let sponsor_dispatcher = IAttenSysSponsorDispatcher {
+                contract_address: sponsor_contract_address
+            };
+            sponsor_dispatcher.deposit(token_address, amt);
+            self.event_to_balance_of_sponsorship.entry(event).write(balance + amt);
+
+            // verify if sponsor doesn't already exist
+            let mut existing_sponsors = self.event_to_list_of_sponsors.entry(event);
+            let mut sponsor_exists = false;
+            for i in 0
+                ..existing_sponsors
+                    .len() {
+                        if sponsor == existing_sponsors.at(i).read() {
+                            sponsor_exists = true;
+                            break;
+                        }
+                    };
+
+            if !sponsor_exists {
+                existing_sponsors.append().write(sponsor);
+            }
+
+            self.emit(Sponsor { amt, uri, event });
+        }
+
+        fn withdraw_sponsorship_funds(ref self: ContractState, amt: u256) {
+            let event = get_caller_address();
+            assert(self.event_exists.entry(event).read(), 'No such event');
+            let event_sponsorship_balance = self
+                .event_to_balance_of_sponsorship
+                .entry(event)
+                .read();
+            assert(event_sponsorship_balance > 0, 'Zero funds retrieved');
+            assert(event_sponsorship_balance >= amt, 'Insufficient funds');
+            let token_address = self.token_address.read();
+            let sponsor_contract_address = self.sponsorship_contract_address.read();
+            let sponsor_dispatcher = IAttenSysSponsorDispatcher {
+                contract_address: sponsor_contract_address
+            };
+            sponsor_dispatcher.withdraw(token_address, amt);
+            self
+                .event_to_balance_of_sponsorship
+                .entry(event)
+                .write(event_sponsorship_balance - amt);
+
+            self.emit(Withdrawn { amt, event });
         }
     }
 

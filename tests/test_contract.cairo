@@ -773,7 +773,6 @@ fn test_register_for_bootcamp() {
 
     dispatcher.register_for_bootcamp(org_address, instructor_address, 0);
 
-
     // org_address: org_,
     // instructor_address: instructor_,
     // bootcamp_id: bootcamp_id
@@ -792,7 +791,6 @@ fn test_register_for_bootcamp() {
                 )
             ]
         )
-
 }
 
 #[test]
@@ -867,7 +865,7 @@ fn test_approve_registration() {
         .create_bootcamp(
             org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri
         );
-        
+
     let student_address_cp = student_address.clone();
     start_cheat_caller_address(contract_address, student_address);
     dispatcher.register_for_bootcamp(org_address, instructor_address, 0);
