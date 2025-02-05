@@ -2,7 +2,7 @@ use starknet::{ContractAddress, contract_address_const, ClassHash};
 // get_caller_address,
 use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global,
-    spy_events, EventSpyAssertionsTrait
+    spy_events, EventSpyAssertionsTrait, test_address
 };
 
 
@@ -64,7 +64,7 @@ pub trait IERC721<TContractState> {
 }
 
 
-fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
+fn deploy_contract(name: ByteArray, hash: ClassHash,) -> ContractAddress {
     let contract = declare(name).unwrap();
     let mut constuctor_arg = ArrayTrait::new();
     let contract_owner_address: ContractAddress = contract_address_const::<
@@ -334,7 +334,10 @@ fn test_add_replace_course_content() {
 #[test]
 fn test_create_event() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
-    let contract_address = deploy_contract("AttenSysEvent", hash);
+    // mock event with test addresses
+    let contract_address = deploy_organization_contract(
+        "AttenSysEvent", hash, test_address(), test_address()
+    );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let owner_address_two: ContractAddress = contract_address_const::<'owner_two'>();
     let dispatcher = IAttenSysEventDispatcher { contract_address };
@@ -385,7 +388,10 @@ fn test_create_event() {
 #[test]
 fn test_reg_nd_mark() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
-    let contract_address = deploy_contract("AttenSysEvent", hash);
+    // mock event with test addresses
+    let contract_address = deploy_organization_contract(
+        "AttenSysEvent", hash, test_address(), test_address()
+    );
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let attendee1_address: ContractAddress = contract_address_const::<'attendee1_address'>();
     let attendee2_address: ContractAddress = contract_address_const::<'attendee2_address'>();
