@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import path from "path";
 
-export async function getCompiledCode(filenameA: string, filenameB: string, filenameC: string, filenameD : string) {
+export async function getCompiledCode(filenameA: string, filenameB: string, filenameC: string, filenameD : string, filenameK: string) {
     const AsierraFilePath = path.join(
     __dirname,
     `../target/dev/${filenameA}.contract_class.json`
@@ -41,7 +41,15 @@ export async function getCompiledCode(filenameA: string, filenameB: string, file
             `../target/dev/${filenameD}.compiled_contract_class.json`
             );
     
-    
+            const KsierraFilePath = path.join(
+                __dirname,
+                `../target/dev/${filenameK}.contract_class.json`
+                );
+            const KcasmFilePath = path.join(
+                __dirname,
+                `../target/dev/${filenameK}.compiled_contract_class.json`
+                );
+
     
     const codeA = [AsierraFilePath, AcasmFilePath].map(async (filePath) => {
         const file = await fs.readFile(filePath);
@@ -72,8 +80,14 @@ export async function getCompiledCode(filenameA: string, filenameB: string, file
     });
     const [DsierraCode, DcasmCode] = await Promise.all(codeD);
 
+    const codeK = [KsierraFilePath, KcasmFilePath].map(async (filePath) => {
+        const file = await fs.readFile(filePath);
+        return JSON.parse(file.toString("ascii"));
+    });
+    const [KsierraCode, KcasmCode] = await Promise.all(codeK);
+
 
     return {
-        AsierraCode, AcasmCode, BsierraCode, BcasmCode, CsierraCode, CcasmCode,DsierraCode, DcasmCode 
+        AsierraCode, AcasmCode, BsierraCode, BcasmCode, CsierraCode, CcasmCode,DsierraCode, DcasmCode, KsierraCode, KcasmCode 
     };
 }
