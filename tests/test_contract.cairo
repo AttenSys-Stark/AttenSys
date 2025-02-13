@@ -106,23 +106,14 @@ fn deploy_organization_contract(
 }
 
 
-fn deploy_sponsorship_contract(name: ByteArray, organization: ContractAddress) -> ContractAddress {
-    let contract = declare(name).unwrap();
-
+fn deploy_sponsorship_contract(organization: ContractAddress, event: ContractAddress) -> ContractAddress {
+    let name_: ByteArray = "AttenSysSponsor";
     let mut constructor_arg = ArrayTrait::new();
 
-    let contract_owner_address: ContractAddress = contract_address_const::<
-        'contract_owner_address'
-    >();
-
-    let event: ContractAddress = contract_address_const::<'event_address'>();
-
-    contract_owner_address.serialize(ref constructor_arg);
-
     organization.serialize(ref constructor_arg);
-
     event.serialize(ref constructor_arg);
-
+    
+    let contract = declare(name_).unwrap();
     let (contract_address, _) = contract.deploy(@constructor_arg).unwrap();
 
     contract_address
@@ -144,6 +135,19 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     (contract_address, contract.class_hash)
 }
 
+fn deploy_erc20_token(name: ByteArray) -> ContractAddress {
+    let name_: ByteArray = "Attensys";
+    let symbol: ByteArray = "ATS";
+    let mut constructor_calldata = ArrayTrait::new();
+
+    name_.serialize(ref constructor_calldata);
+    symbol.serialize(ref constructor_calldata);
+
+    let contract = declare(name).unwrap();
+    let (contract_address, _) = contract.deploy(@constructor_calldata).unwrap();
+
+    contract_address
+}
 
 #[test]
 fn test_create_course() {
@@ -956,3 +960,140 @@ fn test_when_no_org_address_add_instructor_to_org() {
     dispatcher.add_instructor_to_org(arr_of_instructors, org_name);
 }
 
+#[test]
+fn test_sponsor_organization() {
+    let token_address = deploy_erc20_token("AttenSysToken");
+    let (_nft_address, hash) = deploy_nft_contract("AttenSysNft");
+
+    let org_address = contract_address_const::<'org_address'>();
+    let event_address = contract_address_const::<'event_address'>();
+    let sponsor_contract_addr = deploy_sponsorship_contract(org_address, event_address);
+
+    let org_contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_address, sponsor_contract_addr
+    );
+
+    let dispatcher = IAttenSysOrgDispatcher { contract_address: org_contract_address };
+    
+    start_cheat_caller_address(org_contract_address, org_address);
+
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xns";
+
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    dispatcher.setSponsorShipAddress(sponsor_contract_addr);
+
+    let dispatcherForToken = IERC20Dispatcher {
+        contract_address: token_address
+    };
+    dispatcherForToken.approve(sponsor_contract_addr, 100000);
+
+    let org = dispatcher.get_org_info(org_address);
+    let org_addr = org.address_of_org;
+    assert(org_addr == org_address, 'org address not set correctly');
+
+    let initial_balance = dispatcher.get_sponsorship_balance(org_address);
+    println!("initial balance why here {}", initial_balance);
+
+    let uri: ByteArray = "0xns";
+    let sponsorship_amount = 100000;
+    dispatcher.sponsor_organization(org_address, uri, sponsorship_amount);
+    
+    let org_balance = dispatcher.get_sponsorship_balance(org_address);
+    assert_eq!(org_balance, sponsorship_amount);
+
+    let sponsor_dispatcher = IAttenSysSponsorDispatcher {
+        contract_address: sponsor_contract_addr
+    };
+    let sponsorship_balance = sponsor_dispatcher.get_contract_balance(token_address);
+    assert_eq!(sponsorship_balance, sponsorship_amount);
+}
+
+#[test]
+#[should_panic(expected: "unassociated org N instructor")]
+fn test_unauthorized_withdraw_sponsorship_fund() {
+    let token_address = deploy_erc20_token("AttenSysToken");
+    let (_nft_address, hash) = deploy_nft_contract("AttenSysNft");
+
+    let org_address = contract_address_const::<'org_address'>();
+    let event_address = contract_address_const::<'event_address'>();
+    let sponsor_contract_addr = deploy_sponsorship_contract(org_address, event_address);
+
+    let org_contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_address, sponsor_contract_addr
+    );
+
+    let dispatcher = IAttenSysOrgDispatcher { contract_address: org_contract_address };
+    
+    let non_owner = contract_address_const::<'non_owner'>();
+    start_cheat_caller_address(org_contract_address, non_owner);
+
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xns";
+
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    dispatcher.setSponsorShipAddress(sponsor_contract_addr);
+
+    let dispatcherForToken = IERC20Dispatcher {
+        contract_address: token_address
+    };
+    dispatcherForToken.approve(sponsor_contract_addr, 100000);
+
+    let uri: ByteArray = "0xns";
+    let sponsorship_amount = 100000;
+    let withdraw_amount = 50000;
+
+    dispatcher.sponsor_organization(org_address, uri, sponsorship_amount);
+    let sponsor_dispatcher = IAttenSysSponsorDispatcher {
+        contract_address: sponsor_contract_addr
+    };
+    let sponsorship_balance = sponsor_dispatcher.get_contract_balance(token_address);
+    assert_eq!(sponsorship_balance, sponsorship_amount);
+
+    dispatcher.withdraw_sponsorship_fund(withdraw_amount);
+}
+
+#[test]
+fn test_authorized_withdraw_sponsorship_fund() {
+    let token_address = deploy_erc20_token("AttenSysToken");
+    let (_nft_address, hash) = deploy_nft_contract("AttenSysNft");
+
+    let org_address = contract_address_const::<'org_address'>();
+    let event_address = contract_address_const::<'event_address'>();
+    let sponsor_contract_addr = deploy_sponsorship_contract(org_address, event_address);
+
+    let org_contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_address, sponsor_contract_addr
+    );
+
+    let dispatcher = IAttenSysOrgDispatcher { contract_address: org_contract_address };
+    
+    start_cheat_caller_address(org_contract_address, org_address);
+
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xns";
+
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    dispatcher.setSponsorShipAddress(sponsor_contract_addr);
+
+    let dispatcherForToken = IERC20Dispatcher {
+        contract_address: token_address
+    };
+    dispatcherForToken.approve(sponsor_contract_addr, 100000);
+
+    let uri: ByteArray = "0xns";
+    let sponsorship_amount = 100000;
+    let withdraw_amount = 50000;
+
+    dispatcher.sponsor_organization(org_address, uri, sponsorship_amount);
+    let sponsor_dispatcher = IAttenSysSponsorDispatcher {
+        contract_address: sponsor_contract_addr
+    };
+    let sponsorship_balance = sponsor_dispatcher.get_contract_balance(token_address);
+    assert_eq!(sponsorship_balance, sponsorship_amount);
+
+    dispatcher.withdraw_sponsorship_fund(withdraw_amount);
+
+    let updated_sponsorship_balance = sponsor_dispatcher.get_contract_balance(token_address);
+    assert_eq!(updated_sponsorship_balance, sponsorship_amount - withdraw_amount);
+}

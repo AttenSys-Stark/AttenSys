@@ -66,6 +66,7 @@ pub trait IAttenSysOrg<TContractState> {
     fn get_org_instructors(
         self: @TContractState, org_: ContractAddress
     ) -> Array<AttenSysOrg::Instructor>;
+    fn get_sponsorship_balance(self: @TContractState, org_: ContractAddress) -> u256;
     fn get_all_org_bootcamps(
         self: @TContractState, org_: ContractAddress
     ) -> Array<AttenSysOrg::Bootcamp>;
@@ -894,7 +895,7 @@ pub mod AttenSysOrg {
                 sponsor_dispatcher.withdraw(contract_address, amt);
 
                 let balanceBefore = self.org_to_balance_of_sponsorship.entry(organization).read();
-                self.org_to_balance_of_sponsorship.entry(organization).write(balanceBefore + amt);
+                self.org_to_balance_of_sponsorship.entry(organization).write(balanceBefore - amt);
                 let contract_address = self.token_address.read();
                 let sponsor_dispatcher = IAttenSysSponsorDispatcher { contract_address };
                 sponsor_dispatcher.deposit(self.token_address.read(), amt);
@@ -903,6 +904,10 @@ pub mod AttenSysOrg {
                 panic!("not an organization");
             }
         }
+
+        fn get_sponsorship_balance(self: @ContractState, org_: ContractAddress) -> u256 {
+            self.org_to_balance_of_sponsorship.entry(org_).read()
+        }        
 
         // read functions
         fn get_all_org_bootcamps(self: @ContractState, org_: ContractAddress) -> Array<Bootcamp> {
