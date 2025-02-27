@@ -48,6 +48,8 @@ pub trait IAttenSysEvent<TContractState> {
     fn get_new_admin(self: @TContractState) -> ContractAddress;
     fn sponsor_event(ref self: TContractState, event: ContractAddress, amt: u256, uri: ByteArray);
     fn withdraw_sponsorship_funds(ref self: TContractState, amt: u256);
+    fn set_sponsorship_contract(ref self: TContractState, sponsor_contract_address: ContractAddress);
+    fn get_event_sponsorship_balance(self: @TContractState, event: ContractAddress) -> u256;
     fn toggle_event_suspended_status(ref self: TContractState, event_identifier: u256, status: bool);
     fn get_event_suspended_status(self: @TContractState, event_identifier: u256) -> bool;
 }
@@ -615,7 +617,7 @@ mod AttenSysEvent {
             let sponsor_dispatcher = IAttenSysSponsorDispatcher {
                 contract_address: sponsor_contract_address,
             };
-            sponsor_dispatcher.deposit(get_caller_address(), token_address, amt);
+            sponsor_dispatcher.deposit(sponsor, token_address, amt);
             self.event_to_balance_of_sponsorship.entry(event).write(balance + amt);
 
             // verify if sponsor doesn't already exist
@@ -636,6 +638,7 @@ mod AttenSysEvent {
         }
 
         fn withdraw_sponsorship_funds(ref self: ContractState, amt: u256) {
+            assert(amt > 0, 'Invalid withdrawal amount');
             let event = get_caller_address();
             assert(self.event_exists.entry(event).read(), 'No such event');
             let event_sponsorship_balance = self
@@ -658,6 +661,21 @@ mod AttenSysEvent {
             self.emit(Withdrawn { amt, event });
         }
 
+        fn set_sponsorship_contract(
+            ref self: ContractState, sponsor_contract_address: ContractAddress
+        ) {
+            self.only_admin();
+            assert(!sponsor_contract_address.is_zero(), 'Null address not allowed');
+            self.sponsorship_contract_address.write(sponsor_contract_address);
+            // self.emit(SponsorshipAddressSet { sponsor_contract_address });
+        }
+
+        fn get_event_sponsorship_balance(
+            self: @ContractState, event: ContractAddress
+        ) -> u256 {
+            self.event_to_balance_of_sponsorship.entry(event).read()
+        }
+
         fn toggle_event_suspended_status(ref self: ContractState, event_identifier: u256, status: bool) {
             self.only_admin();
             self
@@ -671,6 +689,7 @@ mod AttenSysEvent {
             self.specific_event_with_identifier.entry(event_identifier).read().is_suspended
         }
     }
+
 
     #[generate_trait]
     impl InternalFunctions of InternalFunctionsTrait {
