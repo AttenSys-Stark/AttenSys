@@ -107,7 +107,7 @@ fn test_successful_sponsor_event_flow() {
             nft_symb,
             2238493,
             32989989,
-            true,
+            1,
             event_ipfs_uri.clone(),
             0
         );
@@ -195,7 +195,7 @@ fn test_successful_withdrawal_by_event_creator() {
             nft_symb,
             2238493,
             32989989,
-            true,
+            1,
             event_ipfs_uri.clone(),
             0
         );
@@ -296,7 +296,7 @@ fn test_unauthorized_event_withdrawal() {
             nft_symb,
             2238493,
             32989989,
-            true,
+            1,
             event_ipfs_uri.clone(),
             0
         );

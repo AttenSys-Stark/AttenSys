@@ -405,14 +405,14 @@ fn test_create_event() {
             nft_symb,
             2238493,
             32989989,
-            true,
+            1,
             event_uri.clone(),
             0
         );
     let event_details_check = dispatcher.get_event_details(1);
     //println!("Event URI: {:?}", event_details_check.event_uri);
     assert(event_details_check.event_name == event_name, 'wrong_name');
-    assert(event_details_check.time.registration_open == true, 'not set');
+    assert(event_details_check.time.registration_open == 1, 'not set');
     assert(event_details_check.time.start_time == 2238493, 'wrong start');
     assert(event_details_check.time.end_time == 32989989, 'wrong end');
     assert(event_details_check.event_organizer == owner_address, 'wrong owner');
@@ -436,7 +436,7 @@ fn test_create_event() {
             nft_symb_two,
             2238493,
             32989989,
-            true,
+            1,
             event_uri_two.clone(),
             0
         );
@@ -463,7 +463,7 @@ fn test_create_event() {
             nft_symb_three,
             2238493,
             32989989,
-            true,
+            1,
             event_uri_3.clone(),
             1,
         );
@@ -503,7 +503,7 @@ fn test_reg_nd_mark() {
             nft_symb,
             223,
             329,
-            true,
+            1,
             event_uri,
             0
         );

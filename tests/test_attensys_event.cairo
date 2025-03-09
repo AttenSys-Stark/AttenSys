@@ -184,7 +184,7 @@ fn test_toggle_event_status() {
             "ATS",
             1000,
             2000,
-            true,
+            1,
             "https://dummy_event_uri.com/your_id",
             0
         );
@@ -229,7 +229,7 @@ fn test_toggle_event_should_panic_for_wrong_admin() {
             "ATS",
             1000,
             2000,
-            true,
+            1,
             "https://dummy_event_uri.com/your_id",
             0
         );

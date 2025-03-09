@@ -14,7 +14,7 @@ pub trait IAttenSysEvent<TContractState> {
         symbol: ByteArray,
         start_time_: u256,
         end_time_: u256,
-        reg_status: bool,
+        reg_status: u8,
         event_uri: ByteArray,
         event_location : u8,
     ) -> ContractAddress;
@@ -33,7 +33,7 @@ pub trait IAttenSysEvent<TContractState> {
         self: @TContractState, user: ContractAddress,
     ) -> Array<AttenSysEvent::UserAttendedEventStruct>;
     fn get_all_created_events(self: @TContractState, organizer: ContractAddress) -> Array<AttenSysEvent::EventStruct>;
-    fn start_end_reg(ref self: TContractState, reg_stat: bool, event_identifier: u256);
+    fn start_end_reg(ref self: TContractState, reg_stat: u8, event_identifier: u256);
     fn get_event_details(
         self: @TContractState, event_identifier: u256,
     ) -> AttenSysEvent::EventStruct;
@@ -144,7 +144,7 @@ mod AttenSysEvent {
 
     #[derive(Drop, Copy, Serde, starknet::Store)]
     pub struct Time {
-        pub registration_open: bool,
+        pub registration_open: u8, //0 means false, 1 means true
         pub start_time: u256,
         pub end_time: u256,
     }
@@ -217,7 +217,7 @@ mod AttenSysEvent {
     #[derive(Drop, starknet::Event)]
     pub struct RegistrationStatusChanged {
         pub event_identifier: u256,
-        pub registration_open: bool,
+        pub registration_open: u8,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -263,13 +263,14 @@ mod AttenSysEvent {
             symbol: ByteArray,
             start_time_: u256,
             end_time_: u256,
-            reg_status: bool,
+            reg_status: u8,
             event_uri: ByteArray,
             event_location : u8,
         ) -> ContractAddress {
             let pre_existing_counter = self.event_identifier.read();
             let new_identifier = pre_existing_counter + 1;
             assert(event_location < 2 && event_location >= 0, 'invalid input');
+            assert(reg_status < 2 && reg_status >= 0, 'invalid input');
             let time_data: Time = Time {
                 registration_open: reg_status, start_time: start_time_, end_time: end_time_,
             };
@@ -479,7 +480,7 @@ mod AttenSysEvent {
                 self.registered.entry((get_caller_address(), event_identifier)).read() == false,
                 'already registered',
             );
-            assert(get_block_timestamp().into() >= event_details.time.start_time, 'not started');
+            // assert(get_block_timestamp().into() >= event_details.time.start_time, 'not started');
             self.registered.entry((get_caller_address(), event_identifier)).write(true);
 
             let count = self
@@ -593,7 +594,7 @@ mod AttenSysEvent {
         }
 
 
-        fn start_end_reg(ref self: ContractState, reg_stat: bool, event_identifier: u256) {
+        fn start_end_reg(ref self: ContractState, reg_stat: u8, event_identifier: u256) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             assert(event_details.is_suspended == false, 'event is suspended');
             //only event owner
@@ -800,7 +801,7 @@ mod AttenSysEvent {
             assert(event_details.event_organizer == get_caller_address(), 'not authorized');
 
             let time_data: Time = Time {
-                registration_open: false, start_time: event_details.time.start_time, end_time: 0,
+                registration_open: 0, start_time: event_details.time.start_time, end_time: 0,
             };
             //reset specific event with identifier
             self.specific_event_with_identifier.entry(event_identifier).time.write(time_data);
