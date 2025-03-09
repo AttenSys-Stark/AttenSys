@@ -30,6 +30,9 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_course_infos(
         self: @TContractState, course_identifiers: Array<u256>,
     ) -> Array<AttenSysCourse::Course>;
+    fn is_user_taking_course(
+        self: @TContractState, user: ContractAddress, course_id: u256
+    ) -> bool;
     fn get_all_taken_courses(
         self: @TContractState, user: ContractAddress
     ) -> Array<AttenSysCourse::Course>;
@@ -312,6 +315,13 @@ pub mod AttenSysCourse {
                     };
 
             course_info_list
+        }
+
+        // know if user takes a course
+        fn is_user_taking_course(
+            self: @ContractState, user: ContractAddress, course_id: u256
+        ) -> bool {
+            self.user_to_course_status.entry((user, course_id)).read()
         }
 
 

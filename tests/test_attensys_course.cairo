@@ -183,6 +183,7 @@ fn test_acquire_a_course() {
 
     start_cheat_caller_address(contract_address, student);
     attensys_course_contract.acquire_a_course(0);
+    assert(attensys_course_contract.is_user_taking_course(student, 0), 'not acquired');
     attensys_course_contract.acquire_a_course(0);
     stop_cheat_caller_address(contract_address);
 }
