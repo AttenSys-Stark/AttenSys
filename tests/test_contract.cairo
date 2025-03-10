@@ -509,18 +509,22 @@ fn test_reg_nd_mark() {
         );
 
     start_cheat_block_timestamp_global(55555);
+    let user_a_uri: ByteArray = "https://dummy_uri.com/your_id";
+    let user_b_uri: ByteArray = "https://dummy_uri.com/your_id";
+    let user_c_uri: ByteArray = "https://dummy_uri.com/your_id";
+
     start_cheat_caller_address(contract_address, attendee1_address);
-    dispatcher.register_for_event(1);
+    dispatcher.register_for_event(1, user_a_uri);
     dispatcher.mark_attendance(1,attendee1_address);
     let all_events = dispatcher.get_all_attended_events(attendee1_address);
     assert(all_events.len() == 1, 'wrong length');
 
     start_cheat_caller_address(contract_address, attendee2_address);
-    dispatcher.register_for_event(1);
+    dispatcher.register_for_event(1, user_b_uri);
     dispatcher.mark_attendance(1, attendee2_address);
 
     start_cheat_caller_address(contract_address, attendee3_address);
-    dispatcher.register_for_event(1);
+    dispatcher.register_for_event(1, user_c_uri);
     dispatcher.mark_attendance(1, attendee3_address);
 
     start_cheat_caller_address(contract_address, owner_address);
