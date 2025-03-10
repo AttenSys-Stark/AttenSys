@@ -154,7 +154,9 @@ pub mod AttenSysCourse {
         // user to courses
         user_courses: Map::<ContractAddress, Vec<Course>>,
         // user_to_course_status to prevent more than once
-        user_to_course_status: Map::<(ContractAddress, u256), bool>
+        user_to_course_status: Map::<(ContractAddress, u256), bool>,
+        // user is certified on a course status
+        is_course_certified: Map::<(ContractAddress, u256), bool>
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -402,6 +404,8 @@ pub mod AttenSysCourse {
             //todo issue certification. (whitelist address)
             let is_suspended = self.get_suspension_status(course_identifier);
             assert(is_suspended == false, 'Already suspended');
+            assert(!self.is_course_certified.entry((get_caller_address(), course_identifier)).read(), 'Already certified');
+            self.is_course_certified.entry((get_caller_address(), course_identifier)).write(true);
             self.completion_status.entry((get_caller_address(), course_identifier)).write(true);
             self.completed_courses.entry(get_caller_address()).append().write(course_identifier);
             let nft_contract_address = self
