@@ -17,8 +17,7 @@ pub trait IAttenSysCourse<TContractState> {
         ref self: TContractState,
         course_identifier: u256,
         owner_: ContractAddress,
-        new_course_uri_a: felt252,
-        new_course_uri_b: felt252,
+        new_course_uri: ByteArray
     );
     fn acquire_a_course(ref self: TContractState, course_identifier: u256);
     //untested
@@ -100,8 +99,7 @@ pub mod AttenSysCourse {
     pub struct CourseReplaced {
         pub course_identifier: u256,
         pub owner_: ContractAddress,
-        pub new_course_uri_a: felt252,
-        pub new_course_uri_b: felt252,
+        pub new_course_uri: ByteArray,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -173,7 +171,7 @@ pub mod AttenSysCourse {
         pub owner: ContractAddress,
         pub course_identifier: u256,
         pub accessment: bool,
-        pub uri: Uri,
+        pub uri: ByteArray,
         pub course_ipfs_uri: ByteArray,
         pub is_suspended: bool,
     }
@@ -213,12 +211,11 @@ pub mod AttenSysCourse {
                 current_creator_info.number_of_courses += 1;
                 current_creator_info.creator_status = true;
             }
-            let empty_uri = Uri { first: '', second: '' };
             let mut course_call_data: Course = Course {
                 owner: owner_,
                 course_identifier: current_identifier,
                 accessment: accessment_,
-                uri: empty_uri,
+                uri: base_uri.clone(),
                 course_ipfs_uri: course_ipfs_uri.clone(),
                 is_suspended: false,
             };
@@ -231,7 +228,7 @@ pub mod AttenSysCourse {
                         owner: owner_,
                         course_identifier: current_identifier,
                         accessment: accessment_,
-                        uri: empty_uri,
+                        uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
                     }
@@ -246,7 +243,7 @@ pub mod AttenSysCourse {
                         owner: owner_,
                         course_identifier: current_identifier,
                         accessment: accessment_,
-                        uri: empty_uri,
+                        uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
                     },
@@ -334,8 +331,7 @@ pub mod AttenSysCourse {
             ref self: ContractState,
             course_identifier: u256,
             owner_: ContractAddress,
-            new_course_uri_a: felt252,
-            new_course_uri_b: felt252,
+            new_course_uri: ByteArray,
         ) {
             let is_suspended = self.get_suspension_status(course_identifier);
             assert(is_suspended == false, 'Already suspended');
@@ -346,8 +342,7 @@ pub mod AttenSysCourse {
             let pre_existing_counter = self.identifier_tracker.read();
             assert(course_identifier <= pre_existing_counter, 'course non-existent');
             assert(current_course_info.owner == get_caller_address(), 'not owner');
-            let call_data: Uri = Uri { first: new_course_uri_a, second: new_course_uri_b };
-            current_course_info.uri = call_data;
+            current_course_info.uri = new_course_uri.clone();
             self
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
@@ -367,7 +362,7 @@ pub mod AttenSysCourse {
                                 .at(i)
                                 .read()
                                 .course_identifier == course_identifier {
-                                self.all_course_info.at(i).uri.write(call_data);
+                                self.all_course_info.at(i).uri.write(new_course_uri.clone());
                             } else {
                                 self.all_course_info.append().write(current_course_info.clone());
                             }
@@ -382,7 +377,7 @@ pub mod AttenSysCourse {
                 }
                 let content = self.creator_to_all_content.entry(owner_).at(i).read();
                 if content.course_identifier == course_identifier {
-                    self.creator_to_all_content.entry(owner_).at(i).uri.write(call_data);
+                    self.creator_to_all_content.entry(owner_).at(i).uri.write(new_course_uri.clone());
                 }
                 i += 1;
             };
@@ -391,8 +386,7 @@ pub mod AttenSysCourse {
                     CourseReplaced {
                         course_identifier: course_identifier,
                         owner_: owner_,
-                        new_course_uri_a: new_course_uri_a,
-                        new_course_uri_b: new_course_uri_b,
+                        new_course_uri: new_course_uri,
                     },
                 );
         }

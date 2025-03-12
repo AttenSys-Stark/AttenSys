@@ -340,7 +340,7 @@ fn test_add_replace_course_content() {
     dispatcher
         .create_course(owner_address, true, token_uri_a, nft_name_a, nft_symb_a, token_uri_a_1);
 
-    dispatcher.add_replace_course_content(1, owner_address, '123', '567');
+    dispatcher.add_replace_course_content(1, owner_address, "123");
     spy
         .assert_emitted(
             @array![
@@ -350,8 +350,7 @@ fn test_add_replace_course_content() {
                         AttenSysCourse::CourseReplaced {
                             course_identifier: 1,
                             owner_: owner_address,
-                            new_course_uri_a: '123',
-                            new_course_uri_b: '567',
+                            new_course_uri: "123",
                         },
                     ),
                 ),
@@ -359,19 +358,18 @@ fn test_add_replace_course_content() {
         );
     let array_calldata = array![1];
     let course_info = dispatcher.get_course_infos(array_calldata);
-    assert(*course_info.at(0).uri.first == '123', 'wrong first uri');
-    assert(*course_info.at(0).uri.second == '567', 'wrong second uri');
+    assert(course_info.at(0).uri == @"123", 'wrong first uri');
+
 
     let second_array_calldata = array![1];
-    dispatcher.add_replace_course_content(1, owner_address, '555', '666');
+    dispatcher.add_replace_course_content(1, owner_address, "555");
     let course_info = dispatcher.get_course_infos(second_array_calldata);
-    assert(*course_info.at(0).uri.first == '555', 'wrong first uri');
-    assert(*course_info.at(0).uri.second == '666', 'wrong second uri');
+    assert(course_info.at(0).uri == @"555", 'wrong first uri');
 
     let all_courses_info = dispatcher.get_all_courses_info();
     assert(all_courses_info.len() > 0, 'non-write');
-    assert(*all_courses_info.at(0).uri.first == '555', 'wrong uri replacement');
-    assert(*all_courses_info.at(0).uri.second == '666', 'wrong uri replacement');
+    assert(all_courses_info.at(0).uri == @"555", 'wrong uri replacement');
+
 
     let all_creator_courses = dispatcher.get_all_creator_courses(owner_address);
     assert(all_creator_courses.len() > 0, 'non write CC');
