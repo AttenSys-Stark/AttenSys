@@ -32,6 +32,9 @@ pub trait IAttenSysCourse<TContractState> {
     fn is_user_taking_course(
         self: @TContractState, user: ContractAddress, course_id: u256
     ) -> bool;
+    fn is_user_certified_for_course(
+        self: @TContractState, user: ContractAddress, course_id: u256
+    ) -> bool;
     fn get_all_taken_courses(
         self: @TContractState, user: ContractAddress
     ) -> Array<AttenSysCourse::Course>;
@@ -321,6 +324,13 @@ pub mod AttenSysCourse {
             self: @ContractState, user: ContractAddress, course_id: u256
         ) -> bool {
             self.user_to_course_status.entry((user, course_id)).read()
+        }
+
+        // know if user is certified for a course
+        fn is_user_certified_for_course(
+            self: @ContractState, user: ContractAddress, course_id: u256
+        ) -> bool {
+            self.is_course_certified.entry((user, course_id)).read()
         }
 
 
