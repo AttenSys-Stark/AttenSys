@@ -25,8 +25,8 @@ pub mod AttensysUserData {
 
     #[derive(Drop, Copy, Serde, starknet::Store)]
     pub struct User {
-        name: felt252,
-        uri: felt252
+        pub name: felt252,
+        pub uri: felt252
     }
 
     #[event]

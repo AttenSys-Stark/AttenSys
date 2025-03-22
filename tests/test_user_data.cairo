@@ -20,5 +20,19 @@ fn test_create_name() {
     dispatcher.create_name('firstname', 'Qed85tyuu45ggtCfG6hy');
     stop_cheat_caller_address(contract_address);
 
-    
+    let user = dispatcher.get_specific_user(caller);
+    assert!(user.name == 'firstname', "Not stored user name");
 }
+
+#[test]
+#[should_panic(expected: 'Invalid name or uri')]
+fn test_create_name_should_panic() {
+    let contract_address = deploy_contract();
+    let dispatcher = IAttensysUserDataDispatcher { contract_address };
+    let caller = contract_address_const::<'caller'>();
+
+    start_cheat_caller_address(contract_address, caller);
+    dispatcher.create_name('', 'Qed85tyuu45ggtCfG6hy');
+    stop_cheat_caller_address(contract_address);
+}
+
