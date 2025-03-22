@@ -348,9 +348,7 @@ fn test_add_replace_course_content() {
                     contract_address,
                     AttenSysCourse::Event::CourseReplaced(
                         AttenSysCourse::CourseReplaced {
-                            course_identifier: 1,
-                            owner_: owner_address,
-                            new_course_uri: "123",
+                            course_identifier: 1, owner_: owner_address, new_course_uri: "123",
                         },
                     ),
                 ),
@@ -360,7 +358,6 @@ fn test_add_replace_course_content() {
     let course_info = dispatcher.get_course_infos(array_calldata);
     assert(course_info.at(0).uri == @"123", 'wrong first uri');
 
-
     let second_array_calldata = array![1];
     dispatcher.add_replace_course_content(1, owner_address, "555");
     let course_info = dispatcher.get_course_infos(second_array_calldata);
@@ -369,7 +366,6 @@ fn test_add_replace_course_content() {
     let all_courses_info = dispatcher.get_all_courses_info();
     assert(all_courses_info.len() > 0, 'non-write');
     assert(all_courses_info.at(0).uri == @"555", 'wrong uri replacement');
-
 
     let all_creator_courses = dispatcher.get_all_creator_courses(owner_address);
     assert(all_creator_courses.len() > 0, 'non write CC');
@@ -513,7 +509,7 @@ fn test_reg_nd_mark() {
 
     start_cheat_caller_address(contract_address, attendee1_address);
     dispatcher.register_for_event(1, user_a_uri);
-    dispatcher.mark_attendance(1,attendee1_address);
+    dispatcher.mark_attendance(1, attendee1_address);
     let all_events = dispatcher.get_all_attended_events(attendee1_address);
     assert(all_events.len() == 1, 'wrong length');
 

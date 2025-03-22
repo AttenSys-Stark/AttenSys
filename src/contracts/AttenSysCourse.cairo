@@ -29,9 +29,7 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_course_infos(
         self: @TContractState, course_identifiers: Array<u256>,
     ) -> Array<AttenSysCourse::Course>;
-    fn is_user_taking_course(
-        self: @TContractState, user: ContractAddress, course_id: u256
-    ) -> bool;
+    fn is_user_taking_course(self: @TContractState, user: ContractAddress, course_id: u256) -> bool;
     fn is_user_certified_for_course(
         self: @TContractState, user: ContractAddress, course_id: u256
     ) -> bool;
@@ -296,7 +294,10 @@ pub mod AttenSysCourse {
 
         fn acquire_a_course(ref self: ContractState, course_identifier: u256) {
             let caller = get_caller_address();
-            assert(!self.user_to_course_status.entry((caller, course_identifier)).read(), 'already acquired');
+            assert(
+                !self.user_to_course_status.entry((caller, course_identifier)).read(),
+                'already acquired'
+            );
             self.user_to_course_status.entry((caller, course_identifier)).write(true);
             let derived_course = self
                 .specific_course_info_with_identifer
@@ -387,7 +388,12 @@ pub mod AttenSysCourse {
                 }
                 let content = self.creator_to_all_content.entry(owner_).at(i).read();
                 if content.course_identifier == course_identifier {
-                    self.creator_to_all_content.entry(owner_).at(i).uri.write(new_course_uri.clone());
+                    self
+                        .creator_to_all_content
+                        .entry(owner_)
+                        .at(i)
+                        .uri
+                        .write(new_course_uri.clone());
                 }
                 i += 1;
             };
@@ -408,7 +414,10 @@ pub mod AttenSysCourse {
             //todo issue certification. (whitelist address)
             let is_suspended = self.get_suspension_status(course_identifier);
             assert(is_suspended == false, 'Already suspended');
-            assert(!self.is_course_certified.entry((get_caller_address(), course_identifier)).read(), 'Already certified');
+            assert(
+                !self.is_course_certified.entry((get_caller_address(), course_identifier)).read(),
+                'Already certified'
+            );
             self.is_course_certified.entry((get_caller_address(), course_identifier)).write(true);
             self.completion_status.entry((get_caller_address(), course_identifier)).write(true);
             self.completed_courses.entry(get_caller_address()).append().write(course_identifier);

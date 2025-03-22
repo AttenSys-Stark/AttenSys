@@ -1083,8 +1083,12 @@ pub mod AttenSysOrg {
             assert(is_instructor, 'not an instructor');
             //@todo check if student has been certified
             //@todo check if address is a registered student
-            self.certify_student.entry((org_, bootcamp_id, students)).write(true); 
-            self.certified_students_for_bootcamp.entry((org_, bootcamp_id)).append().write(students);
+            self.certify_student.entry((org_, bootcamp_id, students)).write(true);
+            self
+                .certified_students_for_bootcamp
+                .entry((org_, bootcamp_id))
+                .append()
+                .write(students);
         }
 
         fn setSponsorShipAddress(
