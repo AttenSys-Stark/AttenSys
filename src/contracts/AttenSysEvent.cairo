@@ -56,7 +56,7 @@ pub trait IAttenSysEvent<TContractState> {
     );
     fn get_event_sponsorship_balance(self: @TContractState, event: ContractAddress) -> u256;
     fn toggle_event_suspended_status(
-        ref self: TContractState, event_identifier: u256, status: bool
+        ref self: TContractState, event_identifier: u256, status: bool 
     );
     fn get_event_suspended_status(self: @TContractState, event_identifier: u256) -> bool;
     fn get_all_attendace_marked(
@@ -135,21 +135,47 @@ mod AttenSysEvent {
         events_created_by_address: Map::<ContractAddress, Vec<EventStruct>>,
     }
 
+    #[derive(Copy, Drop, Serde, starknet::Store)]
+    pub enum EventStatus {
+        #[default]
+        Active, // will return 1
+        Cancelled, // will return 2
+        Suspended, // will return 3
+        Ended, // will return 4
+    }
+
+    #[generate_trait]
+    trait EventStatusProcessing {
+        fn process(self: EventStatus) -> u8;
+    }
+
+    impl EventStatusProcessingImpl of EventStatusProcessing {
+        fn process(self: EventStatus) -> u8 {
+            match self {
+                EventStatus::Active => { 1 },
+                EventStatus::Cancelled => { 2 },
+                EventStatus::Suspended => { 3 },
+                EventStatus::Ended => { 4 },
+            }
+        }
+    }
+
     //create a separate struct for the all_attended_event that will only have the time the event
     //took place and its name
     #[derive(Drop, Serde, starknet::Store)]
     pub struct EventStruct {
         pub event_name: ByteArray,
         pub time: Time,
-        pub active_status: bool,
+        // pub active_status: bool,
         pub signature_count: u256,
         pub event_organizer: ContractAddress,
         pub registered_attendants: u256,
         pub event_uri: ByteArray,
-        pub is_suspended: bool,
+        // pub is_suspended: bool,
         pub event_id: u256,
         pub location: u8, // 0 represents online, 1 represents physical
-        pub canceled: bool
+        // pub canceled: bool,
+        pub status: EventStatus,
     }
 
     #[derive(Drop, Copy, Serde, starknet::Store)]
@@ -294,15 +320,16 @@ mod AttenSysEvent {
             let event_call_data: EventStruct = EventStruct {
                 event_name: event_name.clone(),
                 time: time_data,
-                active_status: true,
+                // active_status: true,
                 signature_count: 0,
                 event_organizer: owner_,
                 registered_attendants: 0,
                 event_uri: event_uri.clone(),
-                is_suspended: false,
+                // is_suspended: false,
                 event_id: new_identifier,
                 location: event_location,
-                canceled: false,
+                // canceled: false,
+                status: EventStatus::Active,
             };
 
             // constructor arguments
@@ -327,15 +354,16 @@ mod AttenSysEvent {
                     EventStruct {
                         event_name: event_name.clone(),
                         time: time_data,
-                        active_status: true,
+                        // active_status: true,
                         signature_count: 0,
                         event_organizer: owner_,
                         registered_attendants: 0,
                         event_uri: event_uri.clone(),
-                        is_suspended: false,
+                        // is_suspended: false,
                         event_id: new_identifier,
                         location: event_location,
-                        canceled: false,
+                        // canceled: false,
+                        status: EventStatus::Active,
                     }
                 );
             self
@@ -346,15 +374,16 @@ mod AttenSysEvent {
                     EventStruct {
                         event_name: event_name.clone(),
                         time: time_data,
-                        active_status: true,
+                        // active_status: true,
                         signature_count: 0,
                         event_organizer: owner_,
                         registered_attendants: 0,
                         event_uri: event_uri.clone(),
-                        is_suspended: false,
+                        // is_suspended: false,
                         event_id: new_identifier,
                         location: event_location,
-                        canceled: false,
+                        // canceled: false,
+                        status: EventStatus::Active,
                     }
                 );
             self.event_identifier.write(new_identifier);
@@ -390,7 +419,9 @@ mod AttenSysEvent {
             //only event owner
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             assert(event_details.event_organizer == get_caller_address(), 'not authorized');
-            assert(event_details.is_suspended == false, 'event is suspended');
+            let event_status = event_details.status;
+            assert(event_status.process() == 1, 'event not active');
+            assert(event_status.process() != 3, 'event is suspended');
             //update attendance_status here
             if self.all_attendance_marked_for_event.entry(event_identifier).len() > 0 {
                 let nft_contract_address = self
@@ -440,6 +471,8 @@ mod AttenSysEvent {
         ) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             let event_location = event_details.location;
+            let event_status = event_details.status;
+            assert(event_status.process() == 1, 'event not active');
             let caller = get_caller_address();
             let event_organizer_address = event_details.event_organizer;
             assert(
@@ -451,18 +484,15 @@ mod AttenSysEvent {
             } else {
                 assert(caller == event_organizer_address, 'wrong caller');
             }
-            assert(event_details.is_suspended == false, 'event is suspended');
+            let event_status = event_details.status;
+            assert(event_status.process() != 3, 'event is suspended');
             assert(
                 self.registered.entry((attendee_, event_identifier)).read() == true,
                 'not registered',
             );
-            assert(event_details.active_status == true, 'not started');
+            assert(event_status.process() == 1, 'not started');
             assert(
-                self
-                    .specific_event_with_identifier
-                    .entry(event_identifier)
-                    .read()
-                    .canceled == false,
+                event_status.process() != 2,
                 'event canceled'
             );
 
@@ -513,15 +543,13 @@ mod AttenSysEvent {
             ref self: ContractState, event_identifier: u256, user_uri: ByteArray
         ) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
-            assert(event_details.is_suspended == false, 'event is suspended');
+            let event_status = event_details.status;
+            assert(event_status.process() != 3, 'event is suspended');
             assert(
-                self
-                    .specific_event_with_identifier
-                    .entry(event_identifier)
-                    .read()
-                    .canceled == false,
+                event_status.process() != 2,
                 'event canceled'
             );
+            assert(event_status.process() != 4, 'event is ended');
             //can only register once
             assert(
                 self.registered.entry((get_caller_address(), event_identifier)).read() == false,
@@ -668,7 +696,8 @@ mod AttenSysEvent {
 
         fn start_end_reg(ref self: ContractState, reg_stat: u8, event_identifier: u256) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
-            assert(event_details.is_suspended == false, 'event is suspended');
+            let event_status = event_details.status;
+            assert(event_status.process() != 3, 'event is suspended');
             //only event owner
             assert(event_details.event_organizer == get_caller_address(), 'not authorized');
             assert(reg_stat < 2 && reg_stat >= 0, 'invalid input');
@@ -834,11 +863,24 @@ mod AttenSysEvent {
             ref self: ContractState, event_identifier: u256, status: bool
         ) {
             self.only_admin();
-            self.specific_event_with_identifier.entry(event_identifier).is_suspended.write(status);
+            let event = self.specific_event_with_identifier.entry(event_identifier).read();
+            let status = event.status;
+            if status.process() == 3 {
+                self.specific_event_with_identifier.entry(event_identifier).status.write(EventStatus::Active)
+            } else {
+                self.specific_event_with_identifier.entry(event_identifier).status.write(EventStatus::Suspended);
+            }
         }
 
         fn get_event_suspended_status(self: @ContractState, event_identifier: u256) -> bool {
-            self.specific_event_with_identifier.entry(event_identifier).read().is_suspended
+            // let process = ;
+            let status = self.specific_event_with_identifier.entry(event_identifier).read().status;
+            let result = status.process();
+            if result == 3 {
+                true
+            } else {
+                false
+            }
         }
 
         fn get_all_attendace_marked(
@@ -872,14 +914,20 @@ mod AttenSysEvent {
                         .all_event
                         .len() {
                             if self.all_event.at(i).read().event_name == event_details.event_name {
-                                self.all_event.at(i).canceled.write(true);
+                                self.all_event.at(i).status.write(EventStatus::Cancelled);
                             }
                         }
             }
-            self.specific_event_with_identifier.entry(event_identifier).canceled.write(true);
+            self.specific_event_with_identifier.entry(event_identifier).status.write(EventStatus::Cancelled);
         }
+        
         fn get_cancelation_status(self: @ContractState, event_identifier: u256) -> bool {
-            self.specific_event_with_identifier.entry(event_identifier).read().canceled
+            let event_status = self.specific_event_with_identifier.entry(event_identifier).read().status;
+            if event_status.process() == 2 {
+                true
+            } else {
+                false
+            }
         }
 
         fn get_if_registration_is_open(self: @ContractState, event_identifier: u256) -> u8 {
@@ -905,7 +953,7 @@ mod AttenSysEvent {
             };
             //reset specific event with identifier
             self.specific_event_with_identifier.entry(event_identifier).time.write(time_data);
-            self.specific_event_with_identifier.entry(event_identifier).active_status.write(false);
+            self.specific_event_with_identifier.entry(event_identifier).status.write(EventStatus::Ended);
             //loop through the all_event vec and end the specific event
             if self.all_event.len() > 0 {
                 for i in 0
@@ -914,7 +962,7 @@ mod AttenSysEvent {
                         .len() {
                             if self.all_event.at(i).read().event_name == event_details.event_name {
                                 self.all_event.at(i).time.write(time_data);
-                                self.all_event.at(i).active_status.write(false);
+                                self.all_event.at(i).status.write(EventStatus::Ended);
                             }
                         }
             }
