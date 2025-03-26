@@ -1,10 +1,11 @@
-// Module for event management functions
+#[cfg(target: 'starknet')]
 pub mod event_manager {
-    use core::starknet::{
-        ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
-        syscalls::deploy_syscall, contract_address_const,
+    use core::result::ResultTrait;
+    use starknet::{
+        ContractAddress, ClassHash,
+        syscalls::deploy_syscall
     };
-    use super::super::common::{EventStruct, Time, EventCreated, EventEnded, RegistrationStatusChanged};
+    use super::super::common::{EventStruct, Time};
 
     // Create an event
     pub fn create_event(

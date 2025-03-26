@@ -1,7 +1,7 @@
 use core::starknet::{ContractAddress};
 
 // Common data structures for AttenSys
-#[derive(Drop, Serde, starknet::Store)]
+#[derive(Drop, Clone, Serde, starknet::Store)]
 pub struct EventStruct {
     pub event_name: ByteArray,
     pub time: Time,
@@ -56,4 +56,30 @@ pub struct EventEnded {
 pub struct RegistrationStatusChanged {
     pub event_identifier: u256,
     pub registration_open: u8,
+}
+
+// Admin events
+#[derive(Drop, starknet::Event)]
+pub struct AdminTransferred {
+    pub old_admin: ContractAddress,
+    pub new_admin: ContractAddress,
+}
+
+#[derive(Drop, starknet::Event)]
+pub struct AdminOwnershipClaimed {
+    pub new_admin: ContractAddress,
+}
+
+// Certification events and structs
+#[derive(Drop, starknet::Event)]
+pub struct BatchCertificationCompleted {
+    pub event_identifier: u256,
+    pub attendees: Array<ContractAddress>,
+}
+
+#[derive(Drop, starknet::Event)]
+pub struct CertificationMinted {
+    pub attendee: ContractAddress,
+    pub event_identifier: u256,
+    pub certification_id: u256,
 } 
