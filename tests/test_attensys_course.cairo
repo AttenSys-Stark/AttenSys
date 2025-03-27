@@ -130,6 +130,34 @@ fn test_claim_admin_should_panic_for_wrong_new_admin() {
 }
 
 #[test]
+#[should_panic(expected: 'not original creator')]
+fn test_remove_course_for_wrong_admin() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let contract_address = deploy_contract("AttenSysCourse", hash);
+    let attensys_course_contract = IAttenSysCourseDispatcher { contract_address };
+
+    let owner: ContractAddress = contract_address_const::<'owner'>();
+    let student: ContractAddress = contract_address_const::<'student'>();
+    let base_uri: ByteArray = "https://example.com/";
+    let base_uri_2: ByteArray = "https://example.com/";
+    let name: ByteArray = "Test Course";
+    let symbol: ByteArray = "TC";
+
+    start_cheat_caller_address(contract_address, owner);
+    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2);
+    stop_cheat_caller_address(contract_address);
+
+    
+    // wrong Owner attempts to remove course
+    start_cheat_caller_address(contract_address, student);
+    attensys_course_contract.remove_course(1);  // Should fail
+
+
+    stop_cheat_caller_address(contract_address);
+}
+
+
+#[test]
 fn test_check_course_completion_status() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);

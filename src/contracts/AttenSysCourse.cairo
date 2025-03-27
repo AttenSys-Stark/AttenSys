@@ -26,6 +26,7 @@ pub trait IAttenSysCourse<TContractState> {
     fn check_course_completion_status_n_certification(
         self: @TContractState, course_identifier: u256, candidate: ContractAddress,
     ) -> bool;
+    fn remove_course( ref self: TContractState, course_identifier: u256);
     fn get_course_infos(
         self: @TContractState, course_identifiers: Array<u256>,
     ) -> Array<AttenSysCourse::Course>;
@@ -83,6 +84,7 @@ pub mod AttenSysCourse {
         AdminTransferred: AdminTransferred,
         CourseSuspended: CourseSuspended,
         CourseUnsuspended: CourseUnsuspended,
+        CourseRemoved: CourseRemoved,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -121,6 +123,11 @@ pub mod AttenSysCourse {
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseUnsuspended {
+        course_identifier: u256,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct CourseRemoved {
         course_identifier: u256,
     }
 
@@ -304,6 +311,71 @@ pub mod AttenSysCourse {
                 .entry(course_identifier)
                 .read();
             self.user_courses.entry(caller).append().write(derived_course);
+        }
+
+        fn remove_course(ref self: ContractState, course_identifier: u256) {
+            let caller = get_caller_address();
+            let mut _owner  = self.specific_course_info_with_identifer.entry(course_identifier).owner.read();
+            assert(
+                caller == _owner,
+                'not original creator'
+            );
+            //create a default value to replace course
+            let mut default_course_call_data: Course = Course {
+                owner: self.zero_address(),
+                course_identifier: 0,
+                accessment: false,
+                uri: "",
+                course_ipfs_uri: "",
+                is_suspended: false,
+            };
+            //Update with default parameters
+            self
+                .specific_course_info_with_identifer
+                .entry(course_identifier)
+                .write(default_course_call_data.clone());
+            
+             //run a loop to check if course ID exists in all course info vece, if it does, replace with default.
+            if self.all_course_info.len() == 0 {
+                self.all_course_info.append().write(default_course_call_data.clone());
+            } else {
+                for i in 0
+                    ..self
+                        .all_course_info
+                        .len() {
+                            if self
+                                .all_course_info
+                                .at(i)
+                                .read()
+                                .course_identifier == course_identifier {
+                                self.all_course_info.at(i).write(default_course_call_data.clone());
+                            } 
+                        };
+            };
+             //run a loop to update the creator content storage data
+             let mut i: u64 = 0;
+             let vec_len = self.creator_to_all_content.entry(caller).len();
+             loop {
+                 if i >= vec_len {
+                     break;
+                 }
+                 let content = self.creator_to_all_content.entry(caller).at(i).read();
+                 if content.course_identifier == course_identifier {
+                     self
+                         .creator_to_all_content
+                         .entry(caller)
+                         .at(i)
+                         .write(default_course_call_data.clone());
+                 }
+                 i += 1;
+             };
+
+             //EMit Event
+             self
+             .emit(
+                 CourseRemoved {
+                     course_identifier: course_identifier,
+                 });
         }
 
 
