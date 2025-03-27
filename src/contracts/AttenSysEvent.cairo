@@ -74,7 +74,7 @@ pub trait IAttenSysNft<TContractState> {
 }
 
 #[starknet::contract]
-mod AttenSysEvent {
+pub mod AttenSysEvent {
     use core::num::traits::Zero;
     use super::IAttenSysNftDispatcherTrait;
     use core::starknet::{
@@ -135,29 +135,13 @@ mod AttenSysEvent {
         events_created_by_address: Map::<ContractAddress, Vec<EventStruct>>,
     }
 
-    #[derive(Copy, Drop, Serde, starknet::Store)]
+    #[derive(Copy, Drop, Serde, starknet::Store, PartialEq)]
     pub enum EventStatus {
         #[default]
         Active, // will return 1
         Cancelled, // will return 2
         Suspended, // will return 3
         Ended, // will return 4
-    }
-
-    #[generate_trait]
-    trait EventStatusProcessing {
-        fn process(self: EventStatus) -> u8;
-    }
-
-    impl EventStatusProcessingImpl of EventStatusProcessing {
-        fn process(self: EventStatus) -> u8 {
-            match self {
-                EventStatus::Active => { 1 },
-                EventStatus::Cancelled => { 2 },
-                EventStatus::Suspended => { 3 },
-                EventStatus::Ended => { 4 },
-            }
-        }
     }
 
     //create a separate struct for the all_attended_event that will only have the time the event
@@ -420,8 +404,8 @@ mod AttenSysEvent {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             assert(event_details.event_organizer == get_caller_address(), 'not authorized');
             let event_status = event_details.status;
-            assert(event_status.process() == 1, 'event not active');
-            assert(event_status.process() != 3, 'event is suspended');
+            assert(event_status == EventStatus::Active, 'event not active');
+            assert(event_status != EventStatus::Suspended, 'event is suspended');
             //update attendance_status here
             if self.all_attendance_marked_for_event.entry(event_identifier).len() > 0 {
                 let nft_contract_address = self
@@ -472,7 +456,7 @@ mod AttenSysEvent {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             let event_location = event_details.location;
             let event_status = event_details.status;
-            assert(event_status.process() == 1, 'event not active');
+            assert(event_status == EventStatus::Active, 'event not active');
             let caller = get_caller_address();
             let event_organizer_address = event_details.event_organizer;
             assert(
@@ -485,14 +469,14 @@ mod AttenSysEvent {
                 assert(caller == event_organizer_address, 'wrong caller');
             }
             let event_status = event_details.status;
-            assert(event_status.process() != 3, 'event is suspended');
+            assert(event_status != EventStatus::Suspended, 'event is suspended');
             assert(
                 self.registered.entry((attendee_, event_identifier)).read() == true,
                 'not registered',
             );
-            assert(event_status.process() == 1, 'not started');
+            assert(event_status == EventStatus::Active, 'not started');
             assert(
-                event_status.process() != 2,
+                event_status != EventStatus::Cancelled,
                 'event canceled'
             );
 
@@ -544,12 +528,12 @@ mod AttenSysEvent {
         ) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             let event_status = event_details.status;
-            assert(event_status.process() != 3, 'event is suspended');
+            assert(event_status != EventStatus::Suspended, 'event is suspended');
             assert(
-                event_status.process() != 2,
+                event_status != EventStatus::Cancelled,
                 'event canceled'
             );
-            assert(event_status.process() != 4, 'event is ended');
+            assert(event_status != EventStatus::Ended, 'event is ended');
             //can only register once
             assert(
                 self.registered.entry((get_caller_address(), event_identifier)).read() == false,
@@ -697,7 +681,7 @@ mod AttenSysEvent {
         fn start_end_reg(ref self: ContractState, reg_stat: u8, event_identifier: u256) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             let event_status = event_details.status;
-            assert(event_status.process() != 3, 'event is suspended');
+            assert(event_status != EventStatus::Suspended, 'event is suspended');
             //only event owner
             assert(event_details.event_organizer == get_caller_address(), 'not authorized');
             assert(reg_stat < 2 && reg_stat >= 0, 'invalid input');
@@ -865,7 +849,7 @@ mod AttenSysEvent {
             self.only_admin();
             let event = self.specific_event_with_identifier.entry(event_identifier).read();
             let status = event.status;
-            if status.process() == 3 {
+            if status == EventStatus::Suspended {
                 self.specific_event_with_identifier.entry(event_identifier).status.write(EventStatus::Active)
             } else {
                 self.specific_event_with_identifier.entry(event_identifier).status.write(EventStatus::Suspended);
@@ -873,10 +857,8 @@ mod AttenSysEvent {
         }
 
         fn get_event_suspended_status(self: @ContractState, event_identifier: u256) -> bool {
-            // let process = ;
             let status = self.specific_event_with_identifier.entry(event_identifier).read().status;
-            let result = status.process();
-            if result == 3 {
+            if status == EventStatus::Suspended {
                 true
             } else {
                 false
@@ -923,7 +905,7 @@ mod AttenSysEvent {
         
         fn get_cancelation_status(self: @ContractState, event_identifier: u256) -> bool {
             let event_status = self.specific_event_with_identifier.entry(event_identifier).read().status;
-            if event_status.process() == 2 {
+            if event_status == EventStatus::Cancelled {
                 true
             } else {
                 false
@@ -942,7 +924,7 @@ mod AttenSysEvent {
 
 
     #[generate_trait]
-    impl InternalFunctions of InternalFunctionsTrait {
+    pub impl InternalFunctions of InternalTrait {
         fn end_event_(ref self: ContractState, event_identifier: u256) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             //only event owner

@@ -3,8 +3,8 @@ use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, stop_cheat_caller_address,
     test_address,
 };
-
 use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::AttenSysEvent::AttenSysEvent::EventStatus;
 
 fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
     let contract = declare(name).unwrap();
@@ -170,7 +170,7 @@ fn test_toggle_event_status() {
 
     let admin: ContractAddress = contract_address_const::<'admin'>();
     let attensys_event_contract = IAttenSysEventDispatcher { contract_address };
-
+    // let mut state = AttenSysEvent::contract_state_for_testing();
     assert(attensys_event_contract.get_admin() == admin, 'wrong admin');
 
     start_cheat_caller_address(contract_address, admin);
@@ -190,17 +190,17 @@ fn test_toggle_event_status() {
         );
 
     let event_details = attensys_event_contract.get_event_details(1);
-    assert(event_details.is_suspended == false, 'event is suspended');
+    assert(event_details.status != EventStatus::Suspended, 'event is suspended');
     assert(attensys_event_contract.get_event_suspended_status(1) == false, 'event is suspended');
 
     attensys_event_contract.toggle_event_suspended_status(1, true);
     let event_details = attensys_event_contract.get_event_details(1);
-    assert(event_details.is_suspended == true, 'event is not suspended');
+    assert(event_details.status == EventStatus::Suspended, 'event is not suspended');
     assert(attensys_event_contract.get_event_suspended_status(1) == true, 'event is not suspended');
 
     attensys_event_contract.toggle_event_suspended_status(1, false);
     let event_details = attensys_event_contract.get_event_details(1);
-    assert(event_details.is_suspended == false, 'event is suspended');
+    assert(event_details.status != EventStatus::Suspended, 'event is suspended');
     assert(attensys_event_contract.get_event_suspended_status(1) == false, 'event is suspended');
 
     stop_cheat_caller_address(contract_address)
@@ -235,11 +235,11 @@ fn test_toggle_event_should_panic_for_wrong_admin() {
         );
 
     let event_details = attensys_event_contract.get_event_details(1);
-    assert(event_details.is_suspended == false, 'event is suspended');
+    assert(event_details.status != EventStatus::Suspended, 'event is suspended');
 
     attensys_event_contract.toggle_event_suspended_status(1, true);
     let event_details = attensys_event_contract.get_event_details(1);
-    assert(event_details.is_suspended == true, 'event is not suspended');
+    assert(event_details.status == EventStatus::Suspended, 'event is not suspended');
 
     stop_cheat_caller_address(contract_address)
 }
