@@ -1,4 +1,4 @@
-use core::starknet::ContractAddress;
+use core::starknet::{ContractAddress, ClassHash};
 
 //to do : return the nft id and token uri in the get function
 
@@ -53,7 +53,10 @@ pub trait IAttenSysCourse<TContractState> {
     fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
 }
 
-//Todo, make a count of the total number of users that finished the course.
+#[starknet::interface]
+pub trait IUpgradeable<TContractState> {
+    fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
+}
 
 #[starknet::interface]
 pub trait IAttenSysNft<TContractState> {
@@ -64,15 +67,16 @@ pub trait IAttenSysNft<TContractState> {
 #[starknet::contract]
 pub mod AttenSysCourse {
     use super::IAttenSysNftDispatcherTrait;
+    use super::IAttenSysNftDispatcher;
     use core::starknet::{
         ContractAddress, get_caller_address, syscalls::deploy_syscall, ClassHash,
-        contract_address_const,
+        contract_address_const, replace_class_syscall,
     };
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
         MutableVecTrait,
     };
-
+    use starknet::event::EventEmitter;
 
     #[event]
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -83,6 +87,7 @@ pub mod AttenSysCourse {
         AdminTransferred: AdminTransferred,
         CourseSuspended: CourseSuspended,
         CourseUnsuspended: CourseUnsuspended,
+        ContractUpgraded: ContractUpgraded,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -122,6 +127,12 @@ pub mod AttenSysCourse {
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseUnsuspended {
         course_identifier: u256,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct ContractUpgraded {
+        pub old_class_hash: ClassHash,
+        pub new_class_hash: ClassHash,
     }
 
     #[storage]
@@ -426,7 +437,7 @@ pub mod AttenSysCourse {
                 .entry(course_identifier)
                 .read();
 
-            let nft_dispatcher = super::IAttenSysNftDispatcher {
+            let nft_dispatcher = IAttenSysNftDispatcher {
                 contract_address: nft_contract_address,
             };
 
@@ -557,6 +568,7 @@ pub mod AttenSysCourse {
                 next_nft_id - 1
             }
         }
+        
         fn ensure_admin(self: @ContractState) {
             let caller = get_caller_address();
             assert(caller == self.get_admin(), 'Not admin');
@@ -587,6 +599,28 @@ pub mod AttenSysCourse {
         }
     }
 
+    // Implementing the Upgrade interface
+    #[abi(embed_v0)]
+    impl UpgradeableImpl of super::IUpgradeable<ContractState> {
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+            
+            assert(!new_class_hash.is_zero(), 'New class hash cannot be zero');
+            
+            let current_class_hash = starknet::syscalls::get_contract_address()
+                .class_hash_at(contract_address_const::<0>()).unwrap();
+            
+            assert(current_class_hash != new_class_hash, 'Cannot upgrade to same class');
+            
+            replace_class_syscall(new_class_hash).expect('Upgrade failed');
+            
+            self.emit(ContractUpgraded { 
+                old_class_hash: current_class_hash,
+                new_class_hash: new_class_hash 
+            });
+        }
+    }
+
     #[generate_trait]
     impl InternalFunctions of InternalFunctionsTrait {
         fn zero_address(self: @ContractState) -> ContractAddress {
@@ -594,4 +628,3 @@ pub mod AttenSysCourse {
         }
     }
 }
-
