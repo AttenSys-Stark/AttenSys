@@ -6,5 +6,6 @@ pub mod contracts {
     pub mod AttenSysNft;
     pub mod AttenSysToken;
     pub mod mock;
+    pub mod data;
 }
 
