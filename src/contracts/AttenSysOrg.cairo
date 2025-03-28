@@ -1,4 +1,4 @@
-use core::starknet::{ContractAddress};
+use core::starknet::{ContractAddress, ClassHash};
 
 #[starknet::interface]
 pub trait IAttenSysOrg<TContractState> {
@@ -84,7 +84,6 @@ pub trait IAttenSysOrg<TContractState> {
     ) -> Array<AttenSysOrg::Class>;
     fn get_org_info(self: @TContractState, org_: ContractAddress) -> AttenSysOrg::Organization;
     fn get_all_org_info(self: @TContractState) -> Array<AttenSysOrg::Organization>;
-    //@todo narrow down the student info to specific organization
     fn get_student_info(self: @TContractState, student_: ContractAddress) -> AttenSysOrg::Student;
     fn get_student_classes(
         self: @TContractState, student: ContractAddress,
@@ -129,7 +128,10 @@ pub trait IAttenSysOrg<TContractState> {
     ) -> bool;
 }
 
-// Events
+#[starknet::interface]
+pub trait IUpgradeable<TContractState> {
+    fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
+}
 
 //The contract
 #[starknet::contract]
@@ -137,7 +139,7 @@ pub mod AttenSysOrg {
     use starknet::event::EventEmitter;
     use core::starknet::{
         ContractAddress, ClassHash, get_caller_address, syscalls::deploy_syscall,
-        contract_address_const,
+        contract_address_const, replace_class_syscall,
     };
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
@@ -302,6 +304,7 @@ pub mod AttenSysOrg {
         SponsorshipFundWithdrawn: SponsorshipFundWithdrawn,
         OrganizationSuspended: OrganizationSuspended,
         BootCampSuspended: BootCampSuspended,
+        ContractUpgraded: ContractUpgraded,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -323,9 +326,6 @@ pub mod AttenSysOrg {
     pub struct OrganizationProfile {
         pub org_name: ByteArray,
         pub org_ipfs_uri: ByteArray,
-        //     #[key]
-    //     pub organization: ContractAddress
-    // }
     }
 
     #[derive(Drop, starknet::Event)]
@@ -430,6 +430,12 @@ pub mod AttenSysOrg {
         pub bootcamp_id: u64,
         pub bootcamp_name: ByteArray,
         pub suspended: bool,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct ContractUpgraded {
+        pub old_class_hash: ClassHash,
+        pub new_class_hash: ClassHash,
     }
 
     #[constructor]
@@ -1549,6 +1555,27 @@ pub mod AttenSysOrg {
             self: @ContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress
         ) -> bool {
             self.certify_student.entry((org, bootcamp_id, student)).read()
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl UpgradeableImpl of super::IUpgradeable<ContractState> {
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            only_admin(ref self);
+            
+            assert(!new_class_hash.is_zero(), 'New class hash cannot be zero');
+            
+            let current_class_hash = starknet::syscalls::get_contract_address()
+                .class_hash_at(starknet::contract_address_const::<0>()).unwrap();
+            
+            assert(current_class_hash != new_class_hash, 'Cannot upgrade to same class');
+            
+            replace_class_syscall(new_class_hash).expect('Upgrade failed');
+            
+            self.emit(ContractUpgraded { 
+                old_class_hash: current_class_hash,
+                new_class_hash: new_class_hash 
+            });
         }
     }
 
