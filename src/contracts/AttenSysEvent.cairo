@@ -1,4 +1,4 @@
-use core::starknet::{ContractAddress};
+use core::starknet::{ContractAddress, ClassHash};
 
 //@todo : return the nft id and token uri in the get functions
 #[starknet::interface]
@@ -68,6 +68,11 @@ pub trait IAttenSysEvent<TContractState> {
 }
 
 #[starknet::interface]
+pub trait IUpgradeable<TContractState> {
+    fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
+}
+
+#[starknet::interface]
 pub trait IAttenSysNft<TContractState> {
     // NFT contract
     fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u256);
@@ -77,9 +82,10 @@ pub trait IAttenSysNft<TContractState> {
 mod AttenSysEvent {
     use core::num::traits::Zero;
     use super::IAttenSysNftDispatcherTrait;
+    use super::IAttenSysNftDispatcher;
     use core::starknet::{
         ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
-        syscalls::deploy_syscall, contract_address_const,
+        syscalls::deploy_syscall, contract_address_const, replace_class_syscall,
     };
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec,
@@ -88,6 +94,7 @@ mod AttenSysEvent {
     use attendsys::contracts::AttenSysSponsor::{
         IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
     };
+    use starknet::event::EventEmitter;
 
 
     #[storage]
@@ -188,6 +195,7 @@ mod AttenSysEvent {
         AdminTransferred: AdminTransferred,
         AdminOwnershipClaimed: AdminOwnershipClaimed,
         BatchCertificationCompleted: BatchCertificationCompleted,
+        ContractUpgraded: ContractUpgraded,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -252,6 +260,12 @@ mod AttenSysEvent {
     pub struct BatchCertificationCompleted {
         pub event_identifier: u256,
         pub certified_attendees: Array<ContractAddress>,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct ContractUpgraded {
+        pub old_class_hash: ClassHash,
+        pub new_class_hash: ClassHash,
     }
 
     #[constructor]
@@ -363,14 +377,12 @@ mod AttenSysEvent {
 
             self
                 .emit(
-                    Event::EventCreated(
-                        EventCreated {
-                            event_identifier: new_identifier,
-                            event_name: event_name,
-                            event_organizer: owner_,
-                            event_uri: event_uri,
-                        },
-                    ),
+                    EventCreated {
+                        event_identifier: new_identifier,
+                        event_name: event_name,
+                        event_organizer: owner_,
+                        event_uri: event_uri,
+                    },
                 );
 
             deployed_contract_address
@@ -383,7 +395,7 @@ mod AttenSysEvent {
             );
             self.end_event_(event_identifier);
 
-            self.emit(Event::EventEnded(EventEnded { event_identifier: event_identifier }));
+            self.emit(EventEnded { event_identifier: event_identifier });
         }
 
         fn batch_certify_attendees(ref self: ContractState, event_identifier: u256) {
@@ -413,7 +425,7 @@ mod AttenSysEvent {
                                 .track_minted_nft_id
                                 .entry((event_identifier, nft_contract_address))
                                 .read();
-                            let nft_dispatcher = super::IAttenSysNftDispatcher {
+                            let nft_dispatcher = IAttenSysNftDispatcher {
                                 contract_address: nft_contract_address,
                             };
                             nft_dispatcher.mint(attendee, nft_id);
@@ -425,12 +437,10 @@ mod AttenSysEvent {
                         };
                 self
                     .emit(
-                        Event::BatchCertificationCompleted(
-                            BatchCertificationCompleted {
-                                event_identifier: event_identifier,
-                                certified_attendees: certified_attendees,
-                            },
-                        ),
+                        BatchCertificationCompleted {
+                            event_identifier: event_identifier,
+                            certified_attendees: certified_attendees,
+                        },
                     );
             }
         }
@@ -501,11 +511,9 @@ mod AttenSysEvent {
 
             self
                 .emit(
-                    Event::AttendanceMarked(
-                        AttendanceMarked {
-                            event_identifier: event_identifier, attendee: attendee_,
-                        },
-                    ),
+                    AttendanceMarked {
+                        event_identifier: event_identifier, attendee: attendee_,
+                    },
                 );
         }
 
@@ -569,11 +577,9 @@ mod AttenSysEvent {
                 .write(attendee_calldata);
             self
                 .emit(
-                    Event::RegisteredForEvent(
-                        RegisteredForEvent {
-                            event_identifier: event_identifier, attendee: get_caller_address(),
-                        },
-                    ),
+                    RegisteredForEvent {
+                        event_identifier: event_identifier, attendee: get_caller_address(),
+                    },
                 );
         }
 
@@ -691,11 +697,9 @@ mod AttenSysEvent {
             }
             self
                 .emit(
-                    Event::RegistrationStatusChanged(
-                        RegistrationStatusChanged {
-                            event_identifier: event_identifier, registration_open: reg_stat,
-                        },
-                    ),
+                    RegistrationStatusChanged {
+                        event_identifier: event_identifier, registration_open: reg_stat,
+                    },
                 );
         }
 
@@ -726,9 +730,7 @@ mod AttenSysEvent {
 
             self
                 .emit(
-                    Event::AdminTransferred(
-                        AdminTransferred { old_admin: old_admin, new_admin: new_admin },
-                    ),
+                    AdminTransferred { old_admin: old_admin, new_admin: new_admin },
                 );
         }
 
@@ -740,7 +742,7 @@ mod AttenSysEvent {
             self.admin.write(self.intended_new_admin.read());
             self.intended_new_admin.write(self.zero_address());
 
-            self.emit(Event::AdminOwnershipClaimed(AdminOwnershipClaimed { new_admin: new_admin }));
+            self.emit(AdminOwnershipClaimed { new_admin: new_admin });
         }
 
         fn get_admin(self: @ContractState) -> ContractAddress {
@@ -892,6 +894,28 @@ mod AttenSysEvent {
         }
     }
 
+    #[abi(embed_v0)]
+    impl UpgradeableImpl of super::IUpgradeable<ContractState> {
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            // Only admin can upgrade the contract
+            let caller = get_caller_address();
+            assert(caller == self.admin.read(), 'unauthorized caller');
+            
+            assert(!new_class_hash.is_zero(), 'New class hash cannot be zero');
+            
+            let current_class_hash = starknet::syscalls::get_contract_address()
+                .class_hash_at(contract_address_const::<0>()).unwrap();
+            
+            assert(current_class_hash != new_class_hash, 'Cannot upgrade to same class');
+            
+            replace_class_syscall(new_class_hash).expect('Upgrade failed');
+            
+            self.emit(ContractUpgraded { 
+                old_class_hash: current_class_hash,
+                new_class_hash: new_class_hash 
+            });
+        }
+    }
 
     #[generate_trait]
     impl InternalFunctions of InternalFunctionsTrait {
