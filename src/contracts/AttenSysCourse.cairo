@@ -411,10 +411,9 @@ pub mod AttenSysCourse {
 
         fn get_all_courses_info(self: @ContractState) -> Array<Course> {
             let mut arr = array![];
-            for i in 0
-                ..self.all_course_info.len() {
-                    arr.append(self.all_course_info.at(i).read());
-                };
+            for i in 0..self.all_course_info.len() {
+                arr.append(self.all_course_info.at(i).read());
+            };
             arr
         }
 
@@ -513,6 +512,7 @@ pub mod AttenSysCourse {
             }
         }
     }
+
 
     #[generate_trait]
     impl InternalFunctions of InternalFunctionsTrait {
