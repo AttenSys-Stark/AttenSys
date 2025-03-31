@@ -1,4 +1,4 @@
-use starknet::{ContractAddress, contract_address_const, ClassHash, get_caller_address, Event};
+use starknet::{ContractAddress, contract_address_const, ClassHash, get_caller_address};
 use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, 
     spy_events, EventSpyAssertionsTrait, test_address, 
@@ -6,13 +6,8 @@ use snforge_std::{
 };
 
 use attendsys::contracts::AttenSysOrg::{
-    AttenSysOrg, 
-    IAttenSysOrgDispatcher, 
-    IAttenSysOrgDispatcherTrait,
-    IUpgradeableDispatcher, 
-    IUpgradeableDispatcherTrait,
-    Event::ContractUpgraded,
-    ContractUpgraded
+    AttenSysOrg, IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait,
+    IUpgradeableDispatcher, IUpgradeableDispatcherTrait
 };
 
 fn deploy_attensys_org() -> (ContractAddress, ContractAddress) {
