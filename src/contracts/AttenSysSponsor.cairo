@@ -1,4 +1,5 @@
 use starknet::ContractAddress;
+use core::starknet::ClassHash;
 
 #[starknet::interface]
 pub trait IERC20<TContractState> {
@@ -25,10 +26,8 @@ pub trait IAttenSysSponsor<TContractState> {
     );
     fn withdraw(ref self: TContractState, token_address: ContractAddress, amount: u256);
     fn get_contract_balance(self: @TContractState, token_address: ContractAddress) -> u256;
-}
 
-#[starknet::interface]
-pub trait IUpgradeable<TContractState> {
+    // Add the upgrade function to the interface
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
 }
 
@@ -38,7 +37,8 @@ pub mod AttenSysSponsor {
     use attendsys::contracts::AttenSysSponsor::IERC20DispatcherTrait;
     use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;
     use super::ContractAddress;
-    use starknet::{get_caller_address, get_contract_address, ClassHash, contract_address_const, replace_class_syscall};
+    use starknet::{get_caller_address, get_contract_address};
+    use core::starknet::{ClassHash, syscalls};
     use core::starknet::storage::{Map};
     use starknet::event::EventEmitter;
 
@@ -47,6 +47,7 @@ pub mod AttenSysSponsor {
         balances: Map<ContractAddress, u256>,
         attenSysOrganization: ContractAddress,
         attenSysEvent: ContractAddress,
+        // Added admin field for upgrade access control
         admin: ContractAddress,
     }
 
@@ -70,9 +71,10 @@ pub mod AttenSysSponsor {
         pub amount: u256,
     }
 
+    // New event for contract upgrades
     #[derive(Drop, Debug, PartialEq, starknet::Event)]
     pub struct ContractUpgraded {
-        pub old_class_hash: ClassHash,
+        pub old_class_hash: felt252,
         pub new_class_hash: ClassHash,
     }
 
@@ -110,10 +112,7 @@ pub mod AttenSysSponsor {
                 .transferFrom(sender: sender, recipient: get_contract_address(), amount: amount);
 
             if has_transferred {
-                self
-                    .emit(
-                        SponsorDeposited { token: token_address, amount: amount }
-                    );
+                self.emit(SponsorDeposited { token: token_address, amount: amount });
                 self.balances.write(token_address, self.balances.read(token_address) + amount)
             }
         }
@@ -130,10 +129,7 @@ pub mod AttenSysSponsor {
             let has_transferred = token_dispatcher.transfer(recipient: caller, amount: amount);
 
             if has_transferred {
-                self
-                    .emit(
-                        TokenWithdraw { token: token_address, amount: amount }
-                    );
+                self.emit(TokenWithdraw { token: token_address, amount: amount });
                 self.balances.write(token_address, self.balances.read(token_address) - amount)
             }
         }
@@ -141,27 +137,22 @@ pub mod AttenSysSponsor {
         fn get_contract_balance(self: @ContractState, token_address: ContractAddress) -> u256 {
             self.balances.read(token_address)
         }
-    }
 
-    #[abi(embed_v0)]
-    impl UpgradeableImpl of super::IUpgradeable<ContractState> {
+        // Implementation of the upgrade function
         fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            // Only admin can upgrade the contract
             let caller = get_caller_address();
             assert(caller == self.admin.read(), 'unauthorized caller');
-            
+
+            // Make sure the new implementation isn't zero
             assert(!new_class_hash.is_zero(), 'New class hash cannot be zero');
-            
-            let current_class_hash = starknet::syscalls::get_contract_address()
-                .class_hash_at(contract_address_const::<0>()).unwrap();
-            
-            assert(current_class_hash != new_class_hash, 'Cannot upgrade to same class');
-            
-            replace_class_syscall(new_class_hash).expect('Upgrade failed');
-            
-            self.emit(ContractUpgraded { 
-                old_class_hash: current_class_hash,
-                new_class_hash: new_class_hash 
-            });
+
+            // Perform the upgrade using syscalls
+            syscalls::replace_class_syscall(new_class_hash).expect('Upgrade failed');
+
+            // Emit event with the old and new class hash
+            // Using 0 as placeholder for the old class hash
+            self.emit(ContractUpgraded { old_class_hash: 0, new_class_hash: new_class_hash });
         }
     }
 }

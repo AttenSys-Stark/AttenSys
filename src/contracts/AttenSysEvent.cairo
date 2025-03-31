@@ -85,7 +85,7 @@ mod AttenSysEvent {
     use super::IAttenSysNftDispatcher;
     use core::starknet::{
         ContractAddress, get_caller_address, get_block_timestamp, ClassHash,
-        syscalls::deploy_syscall, contract_address_const, replace_class_syscall,
+        syscalls::deploy_syscall, contract_address_const, syscalls,
     };
     use core::starknet::storage::{
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec,
@@ -264,7 +264,7 @@ mod AttenSysEvent {
 
     #[derive(Drop, starknet::Event)]
     pub struct ContractUpgraded {
-        pub old_class_hash: ClassHash,
+        pub old_class_hash: felt252,
         pub new_class_hash: ClassHash,
     }
 
@@ -511,9 +511,7 @@ mod AttenSysEvent {
 
             self
                 .emit(
-                    AttendanceMarked {
-                        event_identifier: event_identifier, attendee: attendee_,
-                    },
+                    AttendanceMarked { event_identifier: event_identifier, attendee: attendee_, },
                 );
         }
 
@@ -728,10 +726,7 @@ mod AttenSysEvent {
 
             self.intended_new_admin.write(new_admin);
 
-            self
-                .emit(
-                    AdminTransferred { old_admin: old_admin, new_admin: new_admin },
-                );
+            self.emit(AdminTransferred { old_admin: old_admin, new_admin: new_admin },);
         }
 
         fn claim_admin_ownership(ref self: ContractState) {
@@ -900,22 +895,23 @@ mod AttenSysEvent {
             // Only admin can upgrade the contract
             let caller = get_caller_address();
             assert(caller == self.admin.read(), 'unauthorized caller');
-            
-            assert(!new_class_hash.is_zero(), 'New class hash cannot be zero');
-            
-            let current_class_hash = starknet::syscalls::get_contract_address()
-                .class_hash_at(contract_address_const::<0>()).unwrap();
-            
-            assert(current_class_hash != new_class_hash, 'Cannot upgrade to same class');
-            
-            replace_class_syscall(new_class_hash).expect('Upgrade failed');
-            
-            self.emit(ContractUpgraded { 
-                old_class_hash: current_class_hash,
-                new_class_hash: new_class_hash 
-            });
+
+            // We can't directly check if the ClassHash is zero, so we'll check
+            // by converting it to a felt252 and checking if that's zero
+            let class_hash_felt: felt252 = new_class_hash.into();
+            assert(class_hash_felt != 0, 'New class hash cannot be zero');
+
+            // Perform the upgrade using syscalls
+            match syscalls::replace_class_syscall(new_class_hash) {
+                Result::Ok(_) => {},
+                Result::Err(_) => panic!("Upgrade failed"),
+            }
+
+            // Emit event with a placeholder for old_class_hash
+            self.emit(ContractUpgraded { old_class_hash: 0, new_class_hash: new_class_hash });
         }
     }
+
 
     #[generate_trait]
     impl InternalFunctions of InternalFunctionsTrait {
