@@ -1,7 +1,7 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash};
 use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global,
-    spy_events, EventSpyAssertionsTrait, stop_cheat_caller_address
+    spy_events, EventSpyAssertionsTrait, stop_cheat_caller_address,DeclareResultTrait
 };
 
 use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
@@ -26,10 +26,10 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     name_.serialize(ref constructor_calldata);
     symbol.serialize(ref constructor_calldata);
 
-    let contract = declare(name).unwrap();
-    let (contract_address, _) = contract.deploy(@constructor_calldata).unwrap();
+    let contract = declare(name).unwrap().contract_class();
+    let (contract_address, _) = ContractClassTrait::deploy(contract,@constructor_calldata).unwrap();
 
-    (contract_address, contract.class_hash)
+    (contract_address, *contract.class_hash)
 }
 
 fn deploy_event_contract(
@@ -38,7 +38,7 @@ fn deploy_event_contract(
     _token_address: ContractAddress,
     sponsor_contract_address: ContractAddress,
 ) -> ContractAddress {
-    let contract = declare(name).unwrap();
+    let contract = declare(name).unwrap().contract_class();
 
     let mut constuctor_arg = ArrayTrait::new();
     let contract_owner_address: ContractAddress = contract_address_const::<'admin'>();
@@ -48,7 +48,7 @@ fn deploy_event_contract(
     _token_address.serialize(ref constuctor_arg);
     sponsor_contract_address.serialize(ref constuctor_arg);
 
-    let (contract_address, _) = contract.deploy(@constuctor_arg).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract,@constuctor_arg).unwrap();
 
     contract_address
 }
@@ -64,11 +64,11 @@ fn test_successful_sponsor_event_flow() {
 
     // deploy the token
     // let initial_supply: u256 = 1_000_000_u256;
-    let token_contract_class = declare("AttenSysToken").unwrap();
+    let token_contract_class = declare("AttenSysToken").unwrap().contract_class();
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
     // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
-    let (token_contract_address, _) = token_contract_class.deploy(@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(token_contract_class,@constructor_args).unwrap();
 
     // deploy the nft contract
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -81,11 +81,12 @@ fn test_successful_sponsor_event_flow() {
 
     // //deploy the sponsor contract
     let org_contract_address = contract_address_const::<'org_contract_address'>();
-    let sponsor_contract_class = declare("AttenSysSponsor").unwrap();
+    let sponsor_contract_class = declare("AttenSysSponsor").unwrap().contract_class();
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
-    let (sponsor_contract_address, _) = sponsor_contract_class.deploy(@constructor_args).unwrap();
+    owner_address.serialize(ref constructor_args);
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class,@constructor_args).unwrap();
 
     // create an event
     let event_dispatcher = IAttenSysEventDispatcher { contract_address: event_contract_address };
@@ -152,11 +153,11 @@ fn test_successful_withdrawal_by_event_creator() {
 
     // deploy the token
     // let initial_supply: u256 = 1_000_000_u256;
-    let token_contract_class = declare("AttenSysToken").unwrap();
+    let token_contract_class = declare("AttenSysToken").unwrap().contract_class();
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
     // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
-    let (token_contract_address, _) = token_contract_class.deploy(@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(token_contract_class,@constructor_args).unwrap();
 
     // deploy the nft contract
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -169,11 +170,12 @@ fn test_successful_withdrawal_by_event_creator() {
 
     // //deploy the sponsor contract
     let org_contract_address = contract_address_const::<'org_contract_address'>();
-    let sponsor_contract_class = declare("AttenSysSponsor").unwrap();
+    let sponsor_contract_class = declare("AttenSysSponsor").unwrap().contract_class();
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
-    let (sponsor_contract_address, _) = sponsor_contract_class.deploy(@constructor_args).unwrap();
+    owner_address.serialize(ref constructor_args);
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class,@constructor_args).unwrap();
 
     // create an event
     let event_dispatcher = IAttenSysEventDispatcher { contract_address: event_contract_address };
@@ -253,11 +255,11 @@ fn test_unauthorized_event_withdrawal() {
 
     // deploy the token
     // let initial_supply: u256 = 1_000_000_u256;
-    let token_contract_class = declare("AttenSysToken").unwrap();
+    let token_contract_class = declare("AttenSysToken").unwrap().contract_class();
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
     // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
-    let (token_contract_address, _) = token_contract_class.deploy(@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(token_contract_class,@constructor_args).unwrap();
 
     // deploy the nft contract
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -270,11 +272,12 @@ fn test_unauthorized_event_withdrawal() {
 
     // //deploy the sponsor contract
     let org_contract_address = contract_address_const::<'org_contract_address'>();
-    let sponsor_contract_class = declare("AttenSysSponsor").unwrap();
+    let sponsor_contract_class = declare("AttenSysSponsor").unwrap().contract_class();
     let mut constructor_args: Array<felt252> = ArrayTrait::new();
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
-    let (sponsor_contract_address, _) = sponsor_contract_class.deploy(@constructor_args).unwrap();
+    owner_address.serialize(ref constructor_args);
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class,@constructor_args).unwrap();
 
     // create an event
     let event_dispatcher = IAttenSysEventDispatcher { contract_address: event_contract_address };

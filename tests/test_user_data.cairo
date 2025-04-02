@@ -1,11 +1,11 @@
-use snforge_std::{ declare, ContractClassTrait, start_cheat_caller_address, stop_cheat_caller_address };
+use snforge_std::{ declare, ContractClassTrait, start_cheat_caller_address, stop_cheat_caller_address, DeclareResultTrait };
 use starknet::{ ContractAddress, contract_address_const };
 use attendsys::contracts::data::{ AttensysUserData, IAttensysUserDataDispatcher, IAttensysUserDataDispatcherTrait };
 
 fn deploy_contract() -> ContractAddress {
 
-    let contract = declare("AttensysUserData").unwrap();
-    let (contract_address, _) = contract.deploy(@array![]).unwrap();
+    let contract = declare("AttensysUserData").unwrap().contract_class();
+    let (contract_address, _) = ContractClassTrait::deploy(contract,@array![]).unwrap();
 
     contract_address
 }
