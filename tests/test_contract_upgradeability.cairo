@@ -1,4 +1,4 @@
-use starknet::{ContractAddress, contract_address_const, ClassHash, get_caller_address};
+use starknet::{ContractAddress, contract_address_const, ClassHash, get_caller_address, Event};
 use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, 
     spy_events, EventSpyAssertionsTrait, test_address, 
@@ -9,7 +9,8 @@ use attendsys::contracts::AttenSysOrg::{
     IAttenSysOrgDispatcher, 
     IAttenSysOrgDispatcherTrait,
     IUpgradeableDispatcher, 
-    IUpgradeableDispatcherTrait
+    IUpgradeableDispatcherTrait,
+    Event::ContractUpgraded
 };
 
 fn deploy_attensys_org() -> (ContractAddress, ContractAddress) {
@@ -40,14 +41,28 @@ fn test_upgrade_attensys_org() {
     
     start_cheat_caller_address(contract_address, admin_address);
     
+    // Original class hash from deployment
+    let original_class_hash: felt252 = 0x789;
+    
+    // New class hash for upgrade
     let new_class_hash: ClassHash = 0x111.try_into().unwrap();
     
     let mut spy = spy_events();
     
     upgrade_dispatcher.upgrade(new_class_hash);
     
-    // Simplified event assertion
-    spy.assert_emitted(contract_address, @array![]);
+    // Check for the specific ContractUpgraded event
+    spy.assert_emitted(
+        @array![(
+            contract_address, 
+            @array![
+                Event::ContractUpgraded(ContractUpgraded { 
+                    old_class_hash: original_class_hash, 
+                    new_class_hash 
+                })
+            ]
+        )]
+    );
 }
 
 #[test]
