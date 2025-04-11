@@ -371,7 +371,7 @@ pub mod AttenSysCourse {
                         .write(default_course_call_data.clone());
                 }
                 i += 1;
-            }
+            };
 
             //EMit Event
             self.emit(CourseRemoved { course_identifier: course_identifier });
@@ -382,7 +382,7 @@ pub mod AttenSysCourse {
             let mut course_info_list = array![];
             for i in 0..self.user_courses.entry(user).len() {
                 course_info_list.append(self.user_courses.entry(user).at(i).read())
-            }
+            };
 
             course_info_list
         }
@@ -456,7 +456,7 @@ pub mod AttenSysCourse {
                         .write(new_course_uri.clone());
                 }
                 i += 1;
-            }
+            };
             self
                 .emit(
                     CourseReplaced {
@@ -521,7 +521,7 @@ pub mod AttenSysCourse {
             for element in course_identifiers {
                 let mut data = self.specific_course_info_with_identifer.entry(element).read();
                 course_info_list.append(data);
-            }
+            };
             course_info_list
         }
 
@@ -538,7 +538,7 @@ pub mod AttenSysCourse {
                     arr.append(element.read());
                 }
                 i += 1;
-            }
+            };
             arr
         }
 
@@ -546,7 +546,7 @@ pub mod AttenSysCourse {
             let mut arr = array![];
             for i in 0..self.all_course_info.len() {
                 arr.append(self.all_course_info.at(i).read());
-            }
+            };
             arr
         }
 
@@ -563,7 +563,7 @@ pub mod AttenSysCourse {
                     arr.append(element.read());
                 }
                 i += 1;
-            }
+            };
             arr
         }
 
