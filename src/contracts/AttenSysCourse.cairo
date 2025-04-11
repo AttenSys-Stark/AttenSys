@@ -17,7 +17,7 @@ pub trait IAttenSysCourse<TContractState> {
         ref self: TContractState,
         course_identifier: u256,
         owner_: ContractAddress,
-        new_course_uri: ByteArray
+        new_course_uri: ByteArray,
     );
     fn acquire_a_course(ref self: TContractState, course_identifier: u256);
     //untested
@@ -26,16 +26,16 @@ pub trait IAttenSysCourse<TContractState> {
     fn check_course_completion_status_n_certification(
         self: @TContractState, course_identifier: u256, candidate: ContractAddress,
     ) -> bool;
-    fn remove_course( ref self: TContractState, course_identifier: u256);
+    fn remove_course(ref self: TContractState, course_identifier: u256);
     fn get_course_infos(
         self: @TContractState, course_identifiers: Array<u256>,
     ) -> Array<AttenSysCourse::Course>;
     fn is_user_taking_course(self: @TContractState, user: ContractAddress, course_id: u256) -> bool;
     fn is_user_certified_for_course(
-        self: @TContractState, user: ContractAddress, course_id: u256
+        self: @TContractState, user: ContractAddress, course_id: u256,
     ) -> bool;
     fn get_all_taken_courses(
-        self: @TContractState, user: ContractAddress
+        self: @TContractState, user: ContractAddress,
     ) -> Array<AttenSysCourse::Course>;
     fn get_user_completed_courses(self: @TContractState, user: ContractAddress) -> Array<u256>;
     fn get_all_courses_info(self: @TContractState) -> Array<AttenSysCourse::Course>;
@@ -64,15 +64,13 @@ pub trait IAttenSysNft<TContractState> {
 
 #[starknet::contract]
 pub mod AttenSysCourse {
-    use super::IAttenSysNftDispatcherTrait;
-    use core::starknet::{
-        ContractAddress, get_caller_address, syscalls::deploy_syscall, ClassHash,
-        contract_address_const,
-    };
     use core::starknet::storage::{
-        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
-        MutableVecTrait,
+        Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+        Vec, VecTrait,
     };
+    use core::starknet::syscalls::deploy_syscall;
+    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address};
+    use super::IAttenSysNftDispatcherTrait;
 
 
     #[event]
@@ -134,19 +132,19 @@ pub mod AttenSysCourse {
     #[storage]
     struct Storage {
         //save content creator info including all all contents created.
-        course_creator_info: Map::<ContractAddress, Creator>,
+        course_creator_info: Map<ContractAddress, Creator>,
         //saves specific course (course details only), set this when creating course
-        specific_course_info_with_identifer: Map::<u256, Course>,
+        specific_course_info_with_identifer: Map<u256, Course>,
         //saves all course info
         all_course_info: Vec<Course>,
         //saves a course completion status after successfully completed a particular course
-        completion_status: Map::<(ContractAddress, u256), bool>,
+        completion_status: Map<(ContractAddress, u256), bool>,
         //saves completed courses by user
-        completed_courses: Map::<ContractAddress, Vec<u256>>,
+        completed_courses: Map<ContractAddress, Vec<u256>>,
         //saves identifier tracker
         identifier_tracker: u256,
         //maps, creator's address to an array of struct of all courses created.
-        creator_to_all_content: Map::<ContractAddress, Vec<Course>>,
+        creator_to_all_content: Map<ContractAddress, Vec<Course>>,
         //nft classhash
         hash: ClassHash,
         //admin address
@@ -154,15 +152,15 @@ pub mod AttenSysCourse {
         // address of intended new admin
         intended_new_admin: ContractAddress,
         //saves nft contract address associated to event
-        course_nft_contract_address: Map::<u256, ContractAddress>,
+        course_nft_contract_address: Map<u256, ContractAddress>,
         //tracks all minted nft id minted by events
-        track_minted_nft_id: Map::<(u256, ContractAddress), u256>,
+        track_minted_nft_id: Map<(u256, ContractAddress), u256>,
         // user to courses
-        user_courses: Map::<ContractAddress, Vec<Course>>,
+        user_courses: Map<ContractAddress, Vec<Course>>,
         // user_to_course_status to prevent more than once
-        user_to_course_status: Map::<(ContractAddress, u256), bool>,
+        user_to_course_status: Map<(ContractAddress, u256), bool>,
         // user is certified on a course status
-        is_course_certified: Map::<(ContractAddress, u256), bool>
+        is_course_certified: Map<(ContractAddress, u256), bool>,
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -239,7 +237,7 @@ pub mod AttenSysCourse {
                         uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
-                    }
+                    },
                 );
 
             self
@@ -303,7 +301,7 @@ pub mod AttenSysCourse {
             let caller = get_caller_address();
             assert(
                 !self.user_to_course_status.entry((caller, course_identifier)).read(),
-                'already acquired'
+                'already acquired',
             );
             self.user_to_course_status.entry((caller, course_identifier)).write(true);
             let derived_course = self
@@ -315,11 +313,22 @@ pub mod AttenSysCourse {
 
         fn remove_course(ref self: ContractState, course_identifier: u256) {
             let caller = get_caller_address();
-            let mut _owner  = self.specific_course_info_with_identifer.entry(course_identifier).owner.read();
-            assert(
-                caller == _owner,
-                'not original creator'
-            );
+            let mut _owner = self
+                .specific_course_info_with_identifer
+                .entry(course_identifier)
+                .owner
+                .read();
+            //ensure caller is owner
+            assert(caller == _owner, 'not original creator');
+            //ensure course exists
+            let pre_existing_counter = self.identifier_tracker.read();
+
+            assert(course_identifier <= pre_existing_counter, 'course non-existent');
+            assert(course_identifier != 0, 'course non-existent');
+            //ensure course is not suspended
+            let is_suspended = self.get_suspension_status(course_identifier);
+            assert(is_suspended == false, 'Already suspended');
+
             //create a default value to replace course
             let mut default_course_call_data: Course = Course {
                 owner: self.zero_address(),
@@ -334,74 +343,60 @@ pub mod AttenSysCourse {
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .write(default_course_call_data.clone());
-            
-             //run a loop to check if course ID exists in all course info vece, if it does, replace with default.
+
+            //run a loop to check if course ID exists in all course info vece, if it does, replace
+            //with default.
             if self.all_course_info.len() == 0 {
                 self.all_course_info.append().write(default_course_call_data.clone());
             } else {
-                for i in 0
-                    ..self
-                        .all_course_info
-                        .len() {
-                            if self
-                                .all_course_info
-                                .at(i)
-                                .read()
-                                .course_identifier == course_identifier {
-                                self.all_course_info.at(i).write(default_course_call_data.clone());
-                            } 
-                        };
-            };
-             //run a loop to update the creator content storage data
-             let mut i: u64 = 0;
-             let vec_len = self.creator_to_all_content.entry(caller).len();
-             loop {
-                 if i >= vec_len {
-                     break;
-                 }
-                 let content = self.creator_to_all_content.entry(caller).at(i).read();
-                 if content.course_identifier == course_identifier {
-                     self
-                         .creator_to_all_content
-                         .entry(caller)
-                         .at(i)
-                         .write(default_course_call_data.clone());
-                 }
-                 i += 1;
-             };
+                for i in 0..self.all_course_info.len() {
+                    if self.all_course_info.at(i).read().course_identifier == course_identifier {
+                        self.all_course_info.at(i).write(default_course_call_data.clone());
+                    }
+                };
+            }
+            //run a loop to update the creator content storage data
+            let mut i: u64 = 0;
+            let vec_len = self.creator_to_all_content.entry(caller).len();
+            loop {
+                if i >= vec_len {
+                    break;
+                }
+                let content = self.creator_to_all_content.entry(caller).at(i).read();
+                if content.course_identifier == course_identifier {
+                    self
+                        .creator_to_all_content
+                        .entry(caller)
+                        .at(i)
+                        .write(default_course_call_data.clone());
+                }
+                i += 1;
+            }
 
-             //EMit Event
-             self
-             .emit(
-                 CourseRemoved {
-                     course_identifier: course_identifier,
-                 });
+            //EMit Event
+            self.emit(CourseRemoved { course_identifier: course_identifier });
         }
 
 
         fn get_all_taken_courses(self: @ContractState, user: ContractAddress) -> Array<Course> {
             let mut course_info_list = array![];
-            for i in 0
-                ..self
-                    .user_courses
-                    .entry(user)
-                    .len() {
-                        course_info_list.append(self.user_courses.entry(user).at(i).read())
-                    };
+            for i in 0..self.user_courses.entry(user).len() {
+                course_info_list.append(self.user_courses.entry(user).at(i).read())
+            }
 
             course_info_list
         }
 
         // know if user takes a course
         fn is_user_taking_course(
-            self: @ContractState, user: ContractAddress, course_id: u256
+            self: @ContractState, user: ContractAddress, course_id: u256,
         ) -> bool {
             self.user_to_course_status.entry((user, course_id)).read()
         }
 
         // know if user is certified for a course
         fn is_user_certified_for_course(
-            self: @ContractState, user: ContractAddress, course_id: u256
+            self: @ContractState, user: ContractAddress, course_id: u256,
         ) -> bool {
             self.is_course_certified.entry((user, course_id)).read()
         }
@@ -436,21 +431,14 @@ pub mod AttenSysCourse {
             if self.all_course_info.len() == 0 {
                 self.all_course_info.append().write(current_course_info.clone());
             } else {
-                for i in 0
-                    ..self
-                        .all_course_info
-                        .len() {
-                            if self
-                                .all_course_info
-                                .at(i)
-                                .read()
-                                .course_identifier == course_identifier {
-                                self.all_course_info.at(i).uri.write(new_course_uri.clone());
-                            } else {
-                                self.all_course_info.append().write(current_course_info.clone());
-                            }
-                        };
-            };
+                for i in 0..self.all_course_info.len() {
+                    if self.all_course_info.at(i).read().course_identifier == course_identifier {
+                        self.all_course_info.at(i).uri.write(new_course_uri.clone());
+                    } else {
+                        self.all_course_info.append().write(current_course_info.clone());
+                    }
+                };
+            }
             //run a loop to update the creator content storage data
             let mut i: u64 = 0;
             let vec_len = self.creator_to_all_content.entry(owner_).len();
@@ -468,7 +456,7 @@ pub mod AttenSysCourse {
                         .write(new_course_uri.clone());
                 }
                 i += 1;
-            };
+            }
             self
                 .emit(
                     CourseReplaced {
@@ -488,7 +476,7 @@ pub mod AttenSysCourse {
             assert(is_suspended == false, 'Already suspended');
             assert(
                 !self.is_course_certified.entry((get_caller_address(), course_identifier)).read(),
-                'Already certified'
+                'Already certified',
             );
             self.is_course_certified.entry((get_caller_address(), course_identifier)).write(true);
             self.completion_status.entry((get_caller_address(), course_identifier)).write(true);
@@ -533,7 +521,7 @@ pub mod AttenSysCourse {
             for element in course_identifiers {
                 let mut data = self.specific_course_info_with_identifer.entry(element).read();
                 course_info_list.append(data);
-            };
+            }
             course_info_list
         }
 
@@ -550,16 +538,15 @@ pub mod AttenSysCourse {
                     arr.append(element.read());
                 }
                 i += 1;
-            };
+            }
             arr
         }
 
         fn get_all_courses_info(self: @ContractState) -> Array<Course> {
             let mut arr = array![];
-            for i in 0
-                ..self.all_course_info.len() {
-                    arr.append(self.all_course_info.at(i).read());
-                };
+            for i in 0..self.all_course_info.len() {
+                arr.append(self.all_course_info.at(i).read());
+            }
             arr
         }
 
@@ -576,7 +563,7 @@ pub mod AttenSysCourse {
                     arr.append(element.read());
                 }
                 i += 1;
-            };
+            }
             arr
         }
 
