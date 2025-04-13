@@ -4,7 +4,7 @@ on:
   [push, pull_request]
 
 env:
-  SCARB_VERSION: 2.8.4
+  SCARB_VERSION: 2.8.5
 
 jobs:
   check:
@@ -21,7 +21,7 @@ jobs:
       # Step 3: Set up Snfoundry
       - uses: foundry-rs/setup-snfoundry@v2
         with:
-          starknet-foundry-version: 0.27.0
+          starknet-foundry-version: 0.41.0
 
       # Step 4: Install Universal Sierra Compiler
       - name: Install Universal Sierra Compiler
