@@ -1,4 +1,4 @@
-use core::starknet::{ContractAddress};
+use core::starknet::{ContractAddress, ClassHash};
 
 //@todo : return the nft id and token uri in the get functions
 #[starknet::interface]
@@ -65,6 +65,7 @@ pub trait IAttenSysEvent<TContractState> {
     fn cancel_event(ref self: TContractState, event_identifier: u256);
     fn get_cancelation_status(self: @TContractState, event_identifier: u256) -> bool;
     fn get_if_registration_is_open(self: @TContractState, event_identifier: u256) -> u8;
+    fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
 }
 
 #[starknet::interface]
@@ -88,6 +89,20 @@ mod AttenSysEvent {
     use attendsys::contracts::AttenSysSponsor::{
         IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
     };
+    use openzeppelin::access::ownable::OwnableComponent;
+    use openzeppelin::upgrades::UpgradeableComponent;
+    use openzeppelin::upgrades::interface::IUpgradeable;
+
+    component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
+    component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
+
+     /// Ownable
+     #[abi(embed_v0)]
+     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
+     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+ 
+     /// Upgradeable
+     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
 
 
     #[storage]
@@ -133,6 +148,10 @@ mod AttenSysEvent {
         event_exists: Map::<ContractAddress, bool>,
         //tracks specific address created events
         events_created_by_address: Map::<ContractAddress, Vec<EventStruct>>,
+        #[substorage(v0)]
+        ownable: OwnableComponent::Storage,
+        #[substorage(v0)]
+        upgradeable: UpgradeableComponent::Storage,
     }
 
     //create a separate struct for the all_attended_event that will only have the time the event
@@ -188,6 +207,10 @@ mod AttenSysEvent {
         AdminTransferred: AdminTransferred,
         AdminOwnershipClaimed: AdminOwnershipClaimed,
         BatchCertificationCompleted: BatchCertificationCompleted,
+        #[flat]
+        OwnableEvent: OwnableComponent::Event,
+        #[flat]
+        UpgradeableEvent: UpgradeableComponent::Event,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -266,6 +289,7 @@ mod AttenSysEvent {
         self.hash.write(_hash);
         self.token_address.write(_token_address);
         self.sponsorship_contract_address.write(sponsorship_contract_address);
+        self.ownable.initializer(owner);
     }
 
 
@@ -889,6 +913,13 @@ mod AttenSysEvent {
                 .read()
                 .time
                 .registration_open
+        }
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            // This function can only be called by the owner
+            self.ownable.assert_only_owner();
+
+            // Replace the class hash upgrading the contract
+            self.upgradeable.upgrade(new_class_hash);
         }
     }
 
