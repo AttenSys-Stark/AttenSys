@@ -14,7 +14,7 @@ pub trait IAttensysUserData<TContractState> {
 pub mod AttensysUserData {
     use starknet::storage::StoragePathEntry;
     use starknet::{ ContractAddress, get_caller_address };
-    use starknet::storage::{ Map, StorageMapReadAccess, StorageMapWriteAccess, Vec, VecTrait, MutableVecTrait };
+    use starknet::storage::{ Map, Vec, VecTrait, MutableVecTrait };
 
     #[storage]
     struct Storage {

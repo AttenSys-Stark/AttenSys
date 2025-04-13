@@ -1,7 +1,7 @@
 use starknet::{ContractAddress, contract_address_const, ClassHash, get_caller_address};
 use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global,
-    spy_events, EventSpyAssertionsTrait, test_address, stop_cheat_caller_address,
+    spy_events, EventSpyAssertionsTrait, test_address, stop_cheat_caller_address,DeclareResultTrait
 };
 
 use attendsys::contracts::AttenSysSponsor::{
@@ -16,15 +16,15 @@ fn deploy(token: bool) -> (ContractAddress, ContractAddress) {
     if (token) {
         let mut token_constructor_arg = ArrayTrait::new();
         org_address.serialize(ref token_constructor_arg);
-        let token_contract = declare("AttenSysToken").unwrap();
-        let (token_contract_address, _) = token_contract.deploy(@token_constructor_arg).unwrap();
+        let token_contract = declare("AttenSysToken").unwrap().contract_class();
+        let (token_contract_address, _) = ContractClassTrait::deploy(token_contract, @token_constructor_arg).unwrap();
         (token_contract_address, org_address)
     } else {
         let mut constructor_arg = ArrayTrait::new();
         org_address.serialize(ref constructor_arg);
         event_address.serialize(ref constructor_arg);
-        let sponsor_contract = declare("AttenSysSponsor").unwrap();
-        let (sponsor_contract_address, _) = sponsor_contract.deploy(@constructor_arg).unwrap();
+        let sponsor_contract = declare("AttenSysSponsor").unwrap().contract_class();
+        let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract,@constructor_arg).unwrap();
         (sponsor_contract_address, org_address)
     }
 }
