@@ -373,7 +373,20 @@ pub mod AttenSysCourse {
                 i += 1;
             };
 
-            //EMit Event
+            //update current creator info
+            let mut current_creator_info: Creator = self.course_creator_info.entry(caller).read();
+            current_creator_info.number_of_courses -= 1;
+
+            //update nft contract address
+            self
+                .course_nft_contract_address
+                .entry(course_identifier)
+                .write(self.zero_address());
+
+
+
+
+            //emit Event
             self.emit(CourseRemoved { course_identifier: course_identifier });
         }
 
