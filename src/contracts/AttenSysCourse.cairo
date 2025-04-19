@@ -53,7 +53,6 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_suspension_status(self: @TContractState, course_identifier: u256) -> bool;
     fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
-    fn remove_course(ref self: TContractState, course_identifier: u256);
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -70,9 +69,14 @@ pub mod AttenSysCourse {
         Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
         Vec, VecTrait,
     };
+    use core::starknet::syscalls::deploy_syscall;
+    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address};
+    use super::IAttenSysNftDispatcherTrait;
+    
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
+   
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
     component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
@@ -176,7 +180,7 @@ pub mod AttenSysCourse {
         // user_to_course_status to prevent more than once
         user_to_course_status: Map<(ContractAddress, u256), bool>,
         // user is certified on a course status
-        is_course_certified: Map<(ContractAddress, u256), bool>,,
+        is_course_certified: Map<(ContractAddress, u256), bool>,
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
         #[substorage(v0)]
@@ -685,7 +689,6 @@ pub mod AttenSysCourse {
             // Replace the class hash upgrading the contract
             self.upgradeable.upgrade(new_class_hash);
         }
-        fn remove_course(ref self: ContractState, course_identifier: u256){}
     }
 
     #[generate_trait]

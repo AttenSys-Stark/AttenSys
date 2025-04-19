@@ -7,10 +7,7 @@ use snforge_std::{
 use attendsys::contracts::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
-use snforge_std::{
-    ContractClassTrait, declare, start_cheat_caller_address, stop_cheat_caller_address,
-};
-use starknet::{ClassHash, ContractAddress, contract_address_const};
+
 
  fn zero_address() -> ContractAddress {
             contract_address_const::<0>()
