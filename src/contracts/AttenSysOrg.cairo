@@ -1,4 +1,4 @@
-use core::starknet::{ContractAddress};
+use core::starknet::{ContractAddress, ClassHash};
 
 #[starknet::interface]
 pub trait IAttenSysOrg<TContractState> {
@@ -127,6 +127,7 @@ pub trait IAttenSysOrg<TContractState> {
     fn get_bootcamp_certification_status(
         self: @TContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress
     ) -> bool;
+    fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
 }
 
 // Events
@@ -147,6 +148,20 @@ pub mod AttenSysOrg {
     use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
     use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcher;
 
+    use openzeppelin::access::ownable::OwnableComponent;
+    use openzeppelin::upgrades::UpgradeableComponent;
+    use openzeppelin::upgrades::interface::IUpgradeable;
+
+    component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
+    component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
+
+     /// Ownable
+     #[abi(embed_v0)]
+     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
+     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+ 
+     /// Upgradeable
+     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
 
     #[storage]
     struct Storage {
@@ -208,6 +223,10 @@ pub mod AttenSysOrg {
         bootcamp_class_data_id: Map::<(ContractAddress, u64), Vec<u64>>,
         //saves all certifed student for each bootcamp
         certified_students_for_bootcamp: Map::<(ContractAddress, u64), Vec<ContractAddress>>,
+        #[substorage(v0)]
+        ownable: OwnableComponent::Storage,
+        #[substorage(v0)]
+        upgradeable: UpgradeableComponent::Storage,
     }
 
     //find a way to keep track of all course identifiers for each owner.
@@ -302,6 +321,10 @@ pub mod AttenSysOrg {
         SponsorshipFundWithdrawn: SponsorshipFundWithdrawn,
         OrganizationSuspended: OrganizationSuspended,
         BootCampSuspended: BootCampSuspended,
+        #[flat]
+        OwnableEvent: OwnableComponent::Event,
+        #[flat]
+        UpgradeableEvent: UpgradeableComponent::Event,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -444,6 +467,7 @@ pub mod AttenSysOrg {
         self.token_address.write(_token_address);
         self.sponsorship_contract_address.write(sponsorship_contract_address);
         self.admin.write(admin);
+        self.ownable.initializer(admin);
     }
 
     #[abi(embed_v0)]
@@ -1549,6 +1573,14 @@ pub mod AttenSysOrg {
             self: @ContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress
         ) -> bool {
             self.certify_student.entry((org, bootcamp_id, student)).read()
+        }
+        
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            // This function can only be called by the owner
+            self.ownable.assert_only_owner();
+
+            // Replace the class hash upgrading the contract
+            self.upgradeable.upgrade(new_class_hash);
         }
     }
 

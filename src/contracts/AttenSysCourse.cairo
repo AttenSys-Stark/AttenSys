@@ -1,4 +1,4 @@
-use core::starknet::ContractAddress;
+use core::starknet::{ContractAddress, ClassHash};
 
 //to do : return the nft id and token uri in the get function
 
@@ -52,6 +52,8 @@ pub trait IAttenSysCourse<TContractState> {
     fn ensure_admin(self: @TContractState);
     fn get_suspension_status(self: @TContractState, course_identifier: u256) -> bool;
     fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
+    fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
+    fn remove_course(ref self: TContractState, course_identifier: u256);
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -68,13 +70,23 @@ pub mod AttenSysCourse {
         Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
         Vec, VecTrait,
     };
-    use core::starknet::syscalls::deploy_syscall;
-    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address};
-    use super::IAttenSysNftDispatcherTrait;
+    use openzeppelin::access::ownable::OwnableComponent;
+    use openzeppelin::upgrades::UpgradeableComponent;
+    use openzeppelin::upgrades::interface::IUpgradeable;
 
+    component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
+    component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
+
+     /// Ownable
+     #[abi(embed_v0)]
+     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
+     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+ 
+     /// Upgradeable
+     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
 
     #[event]
-    #[derive(starknet::Event, Clone, Debug, Drop)]
+    #[derive(starknet::Event, Debug, Drop)]
     pub enum Event {
         CourseCreated: CourseCreated,
         CourseReplaced: CourseReplaced,
@@ -83,6 +95,10 @@ pub mod AttenSysCourse {
         CourseSuspended: CourseSuspended,
         CourseUnsuspended: CourseUnsuspended,
         CourseRemoved: CourseRemoved,
+        #[flat]
+        OwnableEvent: OwnableComponent::Event,
+        #[flat]
+        UpgradeableEvent: UpgradeableComponent::Event,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -160,7 +176,11 @@ pub mod AttenSysCourse {
         // user_to_course_status to prevent more than once
         user_to_course_status: Map<(ContractAddress, u256), bool>,
         // user is certified on a course status
-        is_course_certified: Map<(ContractAddress, u256), bool>,
+        is_course_certified: Map<(ContractAddress, u256), bool>,,
+        #[substorage(v0)]
+        ownable: OwnableComponent::Storage,
+        #[substorage(v0)]
+        upgradeable: UpgradeableComponent::Storage,
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -192,6 +212,7 @@ pub mod AttenSysCourse {
     fn constructor(ref self: ContractState, owner: ContractAddress, _hash: ClassHash) {
         self.admin.write(owner);
         self.hash.write(_hash);
+        self.ownable.initializer(owner);
     }
 
     #[abi(embed_v0)]
@@ -657,6 +678,14 @@ pub mod AttenSysCourse {
                 }
             }
         }
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            // This function can only be called by the owner
+            self.ownable.assert_only_owner();
+
+            // Replace the class hash upgrading the contract
+            self.upgradeable.upgrade(new_class_hash);
+        }
+        fn remove_course(ref self: ContractState, course_identifier: u256){}
     }
 
     #[generate_trait]
