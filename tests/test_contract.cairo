@@ -2,7 +2,7 @@ use starknet::{ContractAddress, contract_address_const, ClassHash};
 // get_caller_address,
 use snforge_std::{
     declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global,
-    spy_events, EventSpyAssertionsTrait, test_address, stop_cheat_caller_address,
+    spy_events, EventSpyAssertionsTrait, test_address, stop_cheat_caller_address,DeclareResultTrait
 };
 
 
@@ -70,10 +70,10 @@ pub trait IERC721<TContractState> {
 //     let sponsor_address: ContractAddress = contract_address_const::<'sponsor'>();
 //     let initial_supply: u256 = 1_000_000_u256;
 
-//     let contract_class = declare("ERC20").unwrap();
+//     let contract_class = declare("AttenSysToken").unwrap().contract_class();
 
 //     let mut constructor_args = ArrayTrait::new();
-//     initial_supply.serialize(ref constructor_args);
+//     // initial_supply.serialize(ref constructor_args);
 //     sponsor_address.serialize(ref constructor_args);
 
 //     let (contract_address, _) = contract_class.deploy(@constructor_args).unwrap();
@@ -84,7 +84,7 @@ pub trait IERC721<TContractState> {
 // }
 
 fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
-    let contract = declare(name).unwrap();
+    let contract = declare(name).unwrap().contract_class();
     let mut constuctor_arg = ArrayTrait::new();
     let contract_owner_address: ContractAddress = contract_address_const::<
         'contract_owner_address',
@@ -92,7 +92,7 @@ fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
 
     contract_owner_address.serialize(ref constuctor_arg);
     hash.serialize(ref constuctor_arg);
-    let (contract_address, _) = contract.deploy(@constuctor_arg).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constuctor_arg).unwrap();
     contract_address
 }
 
@@ -103,7 +103,7 @@ fn deploy_organization_contract(
     _token_address: ContractAddress,
     sponsor_contract_address: ContractAddress,
 ) -> ContractAddress {
-    let contract = declare(name).unwrap();
+    let contract = declare(name).unwrap().contract_class();
 
     let mut constuctor_arg = ArrayTrait::new();
 
@@ -119,14 +119,14 @@ fn deploy_organization_contract(
 
     sponsor_contract_address.serialize(ref constuctor_arg);
 
-    let (contract_address, _) = contract.deploy(@constuctor_arg).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constuctor_arg).unwrap();
 
     contract_address
 }
 
 
 fn deploy_sponsorship_contract(name: ByteArray, organization: ContractAddress) -> ContractAddress {
-    let contract = declare(name).unwrap();
+    let contract = declare(name).unwrap().contract_class();
 
     let mut constructor_arg = ArrayTrait::new();
 
@@ -157,10 +157,10 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     name_.serialize(ref constructor_calldata);
     symbol.serialize(ref constructor_calldata);
 
-    let contract = declare(name).unwrap();
-    let (contract_address, _) = contract.deploy(@constructor_calldata).unwrap();
+    let contract = declare(name).unwrap().contract_class();
+    let (contract_address, _) = ContractClassTrait::deploy(contract,@constructor_calldata).unwrap();
 
-    (contract_address, contract.class_hash)
+    (contract_address, *contract.class_hash)
 }
 
 
@@ -348,9 +348,7 @@ fn test_add_replace_course_content() {
                     contract_address,
                     AttenSysCourse::Event::CourseReplaced(
                         AttenSysCourse::CourseReplaced {
-                            course_identifier: 1,
-                            owner_: owner_address,
-                            new_course_uri: "123",
+                            course_identifier: 1, owner_: owner_address, new_course_uri: "123",
                         },
                     ),
                 ),
@@ -360,7 +358,6 @@ fn test_add_replace_course_content() {
     let course_info = dispatcher.get_course_infos(array_calldata);
     assert(course_info.at(0).uri == @"123", 'wrong first uri');
 
-
     let second_array_calldata = array![1];
     dispatcher.add_replace_course_content(1, owner_address, "555");
     let course_info = dispatcher.get_course_infos(second_array_calldata);
@@ -369,7 +366,6 @@ fn test_add_replace_course_content() {
     let all_courses_info = dispatcher.get_all_courses_info();
     assert(all_courses_info.len() > 0, 'non-write');
     assert(all_courses_info.at(0).uri == @"555", 'wrong uri replacement');
-
 
     let all_creator_courses = dispatcher.get_all_creator_courses(owner_address);
     assert(all_creator_courses.len() > 0, 'non write CC');
@@ -513,7 +509,7 @@ fn test_reg_nd_mark() {
 
     start_cheat_caller_address(contract_address, attendee1_address);
     dispatcher.register_for_event(1, user_a_uri);
-    dispatcher.mark_attendance(1,attendee1_address);
+    dispatcher.mark_attendance(1, attendee1_address);
     let all_events = dispatcher.get_all_attended_events(attendee1_address);
     assert(all_events.len() == 1, 'wrong length');
 
@@ -1185,14 +1181,14 @@ fn test_sponsor_organization() {
     let sponsor_address: ContractAddress = contract_address_const::<'sponsor'>();
 
     // deploy token
-    let initial_supply: u256 = 1_000_000_u256;
-    let contract_class = declare("ERC20").unwrap();
+    // let initial_supply: u256 = 1_000_000_u256;
+    let contract_class = declare("AttenSysToken").unwrap().contract_class();
 
     let mut constructor_args = ArrayTrait::new();
-    initial_supply.serialize(ref constructor_args);
+    // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
 
-    let (token_contract_address, _) = contract_class.deploy(@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class,@constructor_args).unwrap();
 
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -1202,12 +1198,12 @@ fn test_sponsor_organization() {
 
     //deploy sponsor contract
     let event_contract_address = contract_address_const::<'event_contract_address'>();
-    let sponsor_contract_class = declare("AttenSysSponsor").unwrap();
+    let sponsor_contract_class = declare("AttenSysSponsor").unwrap().contract_class();
     let mut constructor_args = ArrayTrait::new();
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
 
-    let (sponsor_contract_address, _) = sponsor_contract_class.deploy(@constructor_args).unwrap();
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class,@constructor_args).unwrap();
 
     let amount: u256 = 1000_u256;
     let uri: ByteArray = "ipfs://sponsorship-proof";
@@ -1256,14 +1252,14 @@ fn test_withdraw_sponsorship_fund() {
     let sponsor_address: ContractAddress = contract_address_const::<'sponsor'>();
 
     // deploy token
-    let initial_supply: u256 = 1_000_000_u256;
-    let contract_class = declare("ERC20").unwrap();
+    // let initial_supply: u256 = 1_000_000_u256;
+    let contract_class = declare("AttenSysToken").unwrap().contract_class();
 
     let mut constructor_args = ArrayTrait::new();
-    initial_supply.serialize(ref constructor_args);
+    // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
 
-    let (token_contract_address, _) = contract_class.deploy(@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class,@constructor_args).unwrap();
 
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -1273,12 +1269,12 @@ fn test_withdraw_sponsorship_fund() {
 
     //deploy sponsor contract
     let event_contract_address = contract_address_const::<'event_contract_address'>();
-    let sponsor_contract_class = declare("AttenSysSponsor").unwrap();
+    let sponsor_contract_class = declare("AttenSysSponsor").unwrap().contract_class();
     let mut constructor_args = ArrayTrait::new();
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
 
-    let (sponsor_contract_address, _) = sponsor_contract_class.deploy(@constructor_args).unwrap();
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class, @constructor_args).unwrap();
 
     let amount: u256 = 1000_u256;
     let uri: ByteArray = "ipfs://sponsorship-proof";
@@ -1337,14 +1333,14 @@ fn test_withdraw_sponsorship_fund_unauthorized_caller_should_panic() {
     let unauthorized_caller: ContractAddress = contract_address_const::<'unauthorized_caller'>();
 
     // deploy token
-    let initial_supply: u256 = 1_000_000_u256;
-    let contract_class = declare("ERC20").unwrap();
+    // let initial_supply: u256 = 1_000_000_u256;
+    let contract_class = declare("AttenSysToken").unwrap().contract_class();
 
     let mut constructor_args = ArrayTrait::new();
-    initial_supply.serialize(ref constructor_args);
+    // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
 
-    let (token_contract_address, _) = contract_class.deploy(@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class,@constructor_args).unwrap();
 
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -1354,12 +1350,12 @@ fn test_withdraw_sponsorship_fund_unauthorized_caller_should_panic() {
 
     //deploy sponsor contract
     let event_contract_address = contract_address_const::<'event_contract_address'>();
-    let sponsor_contract_class = declare("AttenSysSponsor").unwrap();
+    let sponsor_contract_class = declare("AttenSysSponsor").unwrap().contract_class();
     let mut constructor_args = ArrayTrait::new();
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
 
-    let (sponsor_contract_address, _) = sponsor_contract_class.deploy(@constructor_args).unwrap();
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class, @constructor_args).unwrap();
 
     let amount: u256 = 1000_u256;
     let uri: ByteArray = "ipfs://sponsorship-proof";

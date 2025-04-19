@@ -21,6 +21,10 @@
     "path": "^0.12.7",
     "prettier": "^3.3.3",
     "starknet": "^6.11.0",
-    "starknet-devnet": "^0.2.2"
+    "starknet-devnet": "^0.2.2",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1"
   }
 }

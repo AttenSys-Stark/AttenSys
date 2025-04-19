@@ -1,4 +1,4 @@
-use core::starknet::ContractAddress;
+use core::starknet::{ContractAddress, ClassHash};
 
 //to do : return the nft id and token uri in the get function
 
@@ -29,9 +29,7 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_course_infos(
         self: @TContractState, course_identifiers: Array<u256>,
     ) -> Array<AttenSysCourse::Course>;
-    fn is_user_taking_course(
-        self: @TContractState, user: ContractAddress, course_id: u256
-    ) -> bool;
+    fn is_user_taking_course(self: @TContractState, user: ContractAddress, course_id: u256) -> bool;
     fn is_user_certified_for_course(
         self: @TContractState, user: ContractAddress, course_id: u256
     ) -> bool;
@@ -53,6 +51,8 @@ pub trait IAttenSysCourse<TContractState> {
     fn ensure_admin(self: @TContractState);
     fn get_suspension_status(self: @TContractState, course_identifier: u256) -> bool;
     fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
+    fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
+    fn remove_course(ref self: TContractState, course_identifier: u256);
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -74,10 +74,23 @@ pub mod AttenSysCourse {
         Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
         MutableVecTrait,
     };
+    use openzeppelin::access::ownable::OwnableComponent;
+    use openzeppelin::upgrades::UpgradeableComponent;
+    use openzeppelin::upgrades::interface::IUpgradeable;
 
+    component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
+    component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
+
+     /// Ownable
+     #[abi(embed_v0)]
+     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
+     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+ 
+     /// Upgradeable
+     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
 
     #[event]
-    #[derive(starknet::Event, Clone, Debug, Drop)]
+    #[derive(starknet::Event, Debug, Drop)]
     pub enum Event {
         CourseCreated: CourseCreated,
         CourseReplaced: CourseReplaced,
@@ -85,6 +98,10 @@ pub mod AttenSysCourse {
         AdminTransferred: AdminTransferred,
         CourseSuspended: CourseSuspended,
         CourseUnsuspended: CourseUnsuspended,
+        #[flat]
+        OwnableEvent: OwnableComponent::Event,
+        #[flat]
+        UpgradeableEvent: UpgradeableComponent::Event,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -157,7 +174,11 @@ pub mod AttenSysCourse {
         // user_to_course_status to prevent more than once
         user_to_course_status: Map::<(ContractAddress, u256), bool>,
         // user is certified on a course status
-        is_course_certified: Map::<(ContractAddress, u256), bool>
+        is_course_certified: Map::<(ContractAddress, u256), bool>,
+        #[substorage(v0)]
+        ownable: OwnableComponent::Storage,
+        #[substorage(v0)]
+        upgradeable: UpgradeableComponent::Storage,
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -189,6 +210,7 @@ pub mod AttenSysCourse {
     fn constructor(ref self: ContractState, owner: ContractAddress, _hash: ClassHash) {
         self.admin.write(owner);
         self.hash.write(_hash);
+        self.ownable.initializer(owner);
     }
 
     #[abi(embed_v0)]
@@ -296,7 +318,10 @@ pub mod AttenSysCourse {
 
         fn acquire_a_course(ref self: ContractState, course_identifier: u256) {
             let caller = get_caller_address();
-            assert(!self.user_to_course_status.entry((caller, course_identifier)).read(), 'already acquired');
+            assert(
+                !self.user_to_course_status.entry((caller, course_identifier)).read(),
+                'already acquired'
+            );
             self.user_to_course_status.entry((caller, course_identifier)).write(true);
             let derived_course = self
                 .specific_course_info_with_identifer
@@ -387,7 +412,12 @@ pub mod AttenSysCourse {
                 }
                 let content = self.creator_to_all_content.entry(owner_).at(i).read();
                 if content.course_identifier == course_identifier {
-                    self.creator_to_all_content.entry(owner_).at(i).uri.write(new_course_uri.clone());
+                    self
+                        .creator_to_all_content
+                        .entry(owner_)
+                        .at(i)
+                        .uri
+                        .write(new_course_uri.clone());
                 }
                 i += 1;
             };
@@ -408,7 +438,10 @@ pub mod AttenSysCourse {
             //todo issue certification. (whitelist address)
             let is_suspended = self.get_suspension_status(course_identifier);
             assert(is_suspended == false, 'Already suspended');
-            assert(!self.is_course_certified.entry((get_caller_address(), course_identifier)).read(), 'Already certified');
+            assert(
+                !self.is_course_certified.entry((get_caller_address(), course_identifier)).read(),
+                'Already certified'
+            );
             self.is_course_certified.entry((get_caller_address(), course_identifier)).write(true);
             self.completion_status.entry((get_caller_address(), course_identifier)).write(true);
             self.completed_courses.entry(get_caller_address()).append().write(course_identifier);
@@ -576,6 +609,14 @@ pub mod AttenSysCourse {
                 }
             }
         }
+        fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+            // This function can only be called by the owner
+            self.ownable.assert_only_owner();
+
+            // Replace the class hash upgrading the contract
+            self.upgradeable.upgrade(new_class_hash);
+        }
+        fn remove_course(ref self: ContractState, course_identifier: u256){}
     }
 
     #[generate_trait]
