@@ -54,7 +54,8 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_suspension_status(self: @TContractState, course_identifier: u256) -> bool;
     fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
-    fn get_price_of_strk_usd(self: @TContractState) -> u128; 
+    fn get_price_of_strk_usd(self: @TContractState) -> u128;
+    fn get_strk_of_usd(self: @TContractState, usd_price: u128) -> u128;
     fn update_price(ref self: TContractState, course_identifier: u256, new_price: u128);
 }
 
@@ -77,11 +78,9 @@ pub mod AttenSysCourse {
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
-    use super::IAttenSysNftDispatcherTrait;
-    use pragma_lib::abi::{
-        IPragmaABIDispatcher, IPragmaABIDispatcherTrait,
-    };
+    use pragma_lib::abi::{IPragmaABIDispatcher, IPragmaABIDispatcherTrait};
     use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
+    use super::IAttenSysNftDispatcherTrait;
 
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -96,8 +95,10 @@ pub mod AttenSysCourse {
     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
 
     // Pragma Oracle address on Sepolia
-const PRAGMA_ORACLE_ADDRESS: felt252 = 0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a;
-const KEY :felt252 = 6004514686061859652; // STRK/USD 
+    const PRAGMA_ORACLE_ADDRESS: felt252 =
+        0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a;
+    const KEY: felt252 = 6004514686061859652; // STRK/USD 
+    const ORACLE_PRECISION: u128 = 100_000_000; 
 
     #[event]
     #[derive(starknet::Event, Debug, Drop)]
@@ -261,7 +262,6 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                 current_creator_info.number_of_courses += 1;
                 current_creator_info.creator_status = true;
             }
-           
 
             let mut course_call_data: Course = Course {
                 owner: owner_,
@@ -270,7 +270,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                 uri: base_uri.clone(),
                 course_ipfs_uri: course_ipfs_uri.clone(),
                 is_suspended: false,
-                price: price * self.get_price_of_strk_usd(),
+                price: self.get_strk_of_usd(price),
             };
 
             self
@@ -284,7 +284,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                         uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
-                        price: price * self.get_price_of_strk_usd(),
+                        price: self.get_strk_of_usd(price),
                     },
                 );
 
@@ -300,7 +300,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                         uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
-                        price: price * self.get_price_of_strk_usd(),
+                        price: self.get_strk_of_usd(price),
                     },
                 );
             self.course_creator_info.entry(owner_).write(current_creator_info);
@@ -421,7 +421,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                         .write(default_course_call_data.clone());
                 }
                 i += 1;
-            };
+            }
 
             //update current creator info
             let mut current_creator_info: Creator = self.course_creator_info.entry(caller).read();
@@ -439,7 +439,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
             let mut course_info_list = array![];
             for i in 0..self.user_courses.entry(user).len() {
                 course_info_list.append(self.user_courses.entry(user).at(i).read())
-            };
+            }
 
             course_info_list
         }
@@ -513,7 +513,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                         .write(new_course_uri.clone());
                 }
                 i += 1;
-            };
+            }
             self
                 .emit(
                     CourseReplaced {
@@ -578,7 +578,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
             for element in course_identifiers {
                 let mut data = self.specific_course_info_with_identifer.entry(element).read();
                 course_info_list.append(data);
-            };
+            }
             course_info_list
         }
 
@@ -595,7 +595,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                     arr.append(element.read());
                 }
                 i += 1;
-            };
+            }
             arr
         }
 
@@ -603,7 +603,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
             let mut arr = array![];
             for i in 0..self.all_course_info.len() {
                 arr.append(self.all_course_info.at(i).read());
-            };
+            }
             arr
         }
 
@@ -620,7 +620,7 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
                     arr.append(element.read());
                 }
                 i += 1;
-            };
+            }
             arr
         }
 
@@ -713,13 +713,20 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
             self.internal_get_price_of_strk_usd()
         }
 
+        fn get_strk_of_usd(self: @ContractState, usd_price: u128) -> u128 {
+            self.calculate_course_price_in_strk(usd_price)
+        }
+
         fn update_price(ref self: ContractState, course_identifier: u256, new_price: u128) {
             let caller = get_caller_address();
             let current_creator_info: Creator = self.course_creator_info.entry(caller).read();
             assert(current_creator_info.creator_status == true, 'not creator');
-            
-            let mut course = self.specific_course_info_with_identifer.entry(course_identifier).read();
-            course.price = new_price;
+
+            let mut course = self
+                .specific_course_info_with_identifer
+                .entry(course_identifier)
+                .read();
+            course.price = self.get_strk_of_usd(new_price);
             self.specific_course_info_with_identifer.entry(course_identifier).write(course);
             self.emit(CoursePriceUpdated { course_identifier, new_price });
         }
@@ -739,6 +746,22 @@ const KEY :felt252 = 6004514686061859652; // STRK/USD
             let oracle_response = oracle.get_data(asset_data_type, AggregationMode::Median(()));
             let price_of_strk_usd = oracle_response.price;
             price_of_strk_usd
+        }
+
+
+        fn calculate_course_price_in_strk(self: @ContractState, usd_price: u128) -> u128 {
+            let strk_price = self.internal_get_price_of_strk_usd(); // returns 13572066 for $0.13572066
+
+            // If we want 25 USD worth of STRK:
+            // 25 * 10^8 / 13572066 = number of STRK needed
+            let scaled_amount = usd_price * ORACLE_PRECISION;
+
+            // Round up division
+            if scaled_amount % strk_price == 0 {
+                scaled_amount / strk_price
+            } else {
+                (scaled_amount / strk_price) + 1
+            }
         }
     }
 }

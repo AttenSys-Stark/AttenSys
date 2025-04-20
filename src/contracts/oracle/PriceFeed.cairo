@@ -7,9 +7,7 @@ pub trait IPriceFeedExampleABI<TContractState> {
 
 #[starknet::contract]
 mod PriceFeedExample {
-    use pragma_lib::abi::{
-        IPragmaABIDispatcher, IPragmaABIDispatcherTrait,
-    };
+    use pragma_lib::abi::{IPragmaABIDispatcher, IPragmaABIDispatcherTrait};
     use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
     use starknet::{ContractAddress, get_caller_address};
 
@@ -19,10 +17,7 @@ mod PriceFeedExample {
     }
 
     #[constructor]
-    fn constructor(
-        ref self: ContractState,
-        pragma_address: ContractAddress,
-    ) {
+    fn constructor(ref self: ContractState, pragma_address: ContractAddress) {
         self.pragma_contract.write(pragma_address);
     }
 
@@ -37,11 +32,11 @@ mod PriceFeedExample {
             // Get price data from oracle
             let price_response: PragmaPricesResponse = oracle_dispatcher
                 .get_data(asset_type, AggregationMode::Median(()));
-            
+
             // Verify we got a valid price
             assert(price_response.price > 0, 'Invalid price from oracle');
             assert(price_response.num_sources_aggregated > 0, 'No price sources available');
-            
+
             price_response.price
         }
     }

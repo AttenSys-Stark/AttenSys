@@ -188,7 +188,7 @@ fn test_create_course() {
             nft_name_a.clone(),
             nft_symb_a.clone(),
             token_uri_a_1,
-            0
+            0,
         );
     spy
         .assert_emitted(
@@ -217,7 +217,7 @@ fn test_create_course() {
             nft_name_b.clone(),
             nft_symb_b.clone(),
             token_uri_b_2.clone(),
-            0
+            0,
         );
     dispatcher
         .create_course(owner_address, true, token_uri_b, nft_name_b, nft_symb_b, token_uri_b_2, 0);
@@ -228,7 +228,8 @@ fn test_create_course() {
     let nft_symb = "CAO";
     //call again
     start_cheat_caller_address(contract_address, owner_address_two);
-    dispatcher.create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_11, 0);
+    dispatcher
+        .create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_11, 0);
     let creator_courses = dispatcher.get_all_creator_courses(owner_address);
     let creator_courses_two = dispatcher.get_all_creator_courses(owner_address_two);
     let creator_info = dispatcher.get_creator_info(owner_address);
@@ -279,7 +280,8 @@ fn test_finish_course_n_claim() {
     let nft_symb = "CAO";
     //call again
     start_cheat_caller_address(contract_address, owner_address_two);
-    dispatcher.create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_2, 0);
+    dispatcher
+        .create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_2, 0);
 
     start_cheat_caller_address(contract_address, viewer1_address);
     dispatcher.finish_course_claim_certification(1);
@@ -640,7 +642,9 @@ fn test_add_instructor_to_org() {
                     contract_address,
                     Event::InstructorAddedToOrg(
                         InstructorAddedToOrg {
-                            org_name: org_name_copy, org_address: owner_address, instructor: arr_of_instructors_copy,
+                            org_name: org_name_copy,
+                            org_address: owner_address,
+                            instructor: arr_of_instructors_copy,
                         },
                     ),
                 ),

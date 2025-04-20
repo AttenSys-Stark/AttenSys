@@ -541,7 +541,9 @@ pub mod AttenSysOrg {
                 }
                 self
                     .emit(
-                        InstructorAddedToOrg { org_name: org_name.clone(), org_address: caller, instructor: instructor },
+                        InstructorAddedToOrg {
+                            org_name: org_name.clone(), org_address: caller, instructor: instructor,
+                        },
                     )
             } else {
                 panic!("no organization created.");
