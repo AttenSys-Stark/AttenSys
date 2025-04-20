@@ -4,7 +4,7 @@ on:
   [push, pull_request]
 
 env:
-  SCARB_VERSION: 2.10.1
+  SCARB_VERSION: 2.11.3
 
 jobs:
   check:
