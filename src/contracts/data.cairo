@@ -12,9 +12,8 @@ pub trait IAttensysUserData<TContractState> {
 
 #[starknet::contract]
 pub mod AttensysUserData {
-    use starknet::storage::StoragePathEntry;
-    use starknet::{ ContractAddress, get_caller_address };
-    use starknet::storage::{ Map, Vec, VecTrait, MutableVecTrait };
+    use starknet::storage::{Map, MutableVecTrait, StoragePathEntry, Vec, VecTrait};
+    use starknet::{ContractAddress, get_caller_address};
 
     #[storage]
     struct Storage {
@@ -26,7 +25,7 @@ pub mod AttensysUserData {
     #[derive(Drop, Copy, Serde, starknet::Store)]
     pub struct User {
         pub name: felt252,
-        pub uri: felt252
+        pub uri: felt252,
     }
 
     #[event]
@@ -38,7 +37,7 @@ pub mod AttensysUserData {
     #[derive(Drop, starknet::Event)]
     pub struct UserProfileCreated {
         user_address: ContractAddress,
-        uri: felt252
+        uri: felt252,
     }
 
     #[abi(embed_v0)]
@@ -51,17 +50,11 @@ pub mod AttensysUserData {
 
             name_map.write(true);
 
-            let user: User = User {
-                name,
-                uri
-            };
+            let user: User = User { name, uri };
             self.users.append().write(user);
             self.user.entry(caller).write(user);
 
-            self.emit(UserProfileCreated {
-                user_address: caller,
-                uri
-            });
+            self.emit(UserProfileCreated { user_address: caller, uri });
         }
 
         fn name_exists(self: @ContractState, name: felt252) -> bool {
@@ -80,7 +73,7 @@ pub mod AttensysUserData {
                 let user = self.users.at(index).read();
                 users_arr.append(user);
                 index += 1;
-            };
+            }
 
             users_arr
         }
@@ -88,7 +81,5 @@ pub mod AttensysUserData {
         fn get_specific_user(self: @ContractState, user: ContractAddress) -> User {
             self.user.entry(user).read()
         }
-
     }
-
 }

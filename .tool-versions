@@ -1,2 +1,2 @@
 starknet-foundry 0.41.0 --global
-scarb 2.9.4 --global
+scarb 2.11.3
