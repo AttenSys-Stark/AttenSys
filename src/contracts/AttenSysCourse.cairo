@@ -1,4 +1,4 @@
-use core::starknet::{ContractAddress, ClassHash};
+use core::starknet::{ClassHash, ContractAddress};
 
 //to do : return the nft id and token uri in the get function
 
@@ -12,6 +12,7 @@ pub trait IAttenSysCourse<TContractState> {
         name_: ByteArray,
         symbol: ByteArray,
         course_ipfs_uri: ByteArray,
+        price: u128,
     ) -> (ContractAddress, u256);
     fn add_replace_course_content(
         ref self: TContractState,
@@ -53,6 +54,8 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_suspension_status(self: @TContractState, course_identifier: u256) -> bool;
     fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
+    fn get_price_of_strk_usd(self: @TContractState) -> u128; 
+    fn update_price(ref self: TContractState, course_identifier: u256, new_price: u128);
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -71,23 +74,30 @@ pub mod AttenSysCourse {
     };
     use core::starknet::syscalls::deploy_syscall;
     use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address};
-    use super::IAttenSysNftDispatcherTrait;
-    
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
-   
+    use super::IAttenSysNftDispatcherTrait;
+    use pragma_lib::abi::{
+        IPragmaABIDispatcher, IPragmaABIDispatcherTrait,
+    };
+    use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
+
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
     component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
 
-     /// Ownable
-     #[abi(embed_v0)]
-     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
-     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
- 
-     /// Upgradeable
-     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
+    /// Ownable
+    #[abi(embed_v0)]
+    impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
+    impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+
+    /// Upgradeable
+    impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
+
+    // Pragma Oracle address on Sepolia
+const PRAGMA_ORACLE_ADDRESS: felt252 = 0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a;
+const KEY :felt252 = 6004514686061859652; // STRK/USD 
 
     #[event]
     #[derive(starknet::Event, Debug, Drop)]
@@ -103,6 +113,7 @@ pub mod AttenSysCourse {
         OwnableEvent: OwnableComponent::Event,
         #[flat]
         UpgradeableEvent: UpgradeableComponent::Event,
+        CoursePriceUpdated: CoursePriceUpdated,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -147,6 +158,12 @@ pub mod AttenSysCourse {
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseRemoved {
         course_identifier: u256,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct CoursePriceUpdated {
+        course_identifier: u256,
+        new_price: u128,
     }
 
     #[storage]
@@ -204,6 +221,7 @@ pub mod AttenSysCourse {
         pub uri: ByteArray,
         pub course_ipfs_uri: ByteArray,
         pub is_suspended: bool,
+        pub price: u128,
     }
 
     #[derive(Drop, Copy, Serde, starknet::Store)]
@@ -229,6 +247,7 @@ pub mod AttenSysCourse {
             name_: ByteArray,
             symbol: ByteArray,
             course_ipfs_uri: ByteArray,
+            price: u128,
         ) -> (ContractAddress, u256) {
             //make an address zero check
             let identifier_count = self.identifier_tracker.read();
@@ -242,6 +261,8 @@ pub mod AttenSysCourse {
                 current_creator_info.number_of_courses += 1;
                 current_creator_info.creator_status = true;
             }
+           
+
             let mut course_call_data: Course = Course {
                 owner: owner_,
                 course_identifier: current_identifier,
@@ -249,6 +270,7 @@ pub mod AttenSysCourse {
                 uri: base_uri.clone(),
                 course_ipfs_uri: course_ipfs_uri.clone(),
                 is_suspended: false,
+                price: price * self.get_price_of_strk_usd(),
             };
 
             self
@@ -262,6 +284,7 @@ pub mod AttenSysCourse {
                         uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
+                        price: price * self.get_price_of_strk_usd(),
                     },
                 );
 
@@ -277,6 +300,7 @@ pub mod AttenSysCourse {
                         uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
+                        price: price * self.get_price_of_strk_usd(),
                     },
                 );
             self.course_creator_info.entry(owner_).write(current_creator_info);
@@ -362,6 +386,7 @@ pub mod AttenSysCourse {
                 uri: "",
                 course_ipfs_uri: "",
                 is_suspended: false,
+                price: 0,
             };
             //Update with default parameters
             self
@@ -403,13 +428,7 @@ pub mod AttenSysCourse {
             current_creator_info.number_of_courses -= 1;
 
             //update nft contract address
-            self
-                .course_nft_contract_address
-                .entry(course_identifier)
-                .write(self.zero_address());
-
-
-
+            self.course_nft_contract_address.entry(course_identifier).write(self.zero_address());
 
             //emit Event
             self.emit(CourseRemoved { course_identifier: course_identifier });
@@ -689,12 +708,37 @@ pub mod AttenSysCourse {
             // Replace the class hash upgrading the contract
             self.upgradeable.upgrade(new_class_hash);
         }
+
+        fn get_price_of_strk_usd(self: @ContractState) -> u128 {
+            self.internal_get_price_of_strk_usd()
+        }
+
+        fn update_price(ref self: ContractState, course_identifier: u256, new_price: u128) {
+            let caller = get_caller_address();
+            let current_creator_info: Creator = self.course_creator_info.entry(caller).read();
+            assert(current_creator_info.creator_status == true, 'not creator');
+            
+            let mut course = self.specific_course_info_with_identifer.entry(course_identifier).read();
+            course.price = new_price;
+            self.specific_course_info_with_identifer.entry(course_identifier).write(course);
+            self.emit(CoursePriceUpdated { course_identifier, new_price });
+        }
     }
 
     #[generate_trait]
     impl InternalFunctions of InternalFunctionsTrait {
         fn zero_address(self: @ContractState) -> ContractAddress {
             contract_address_const::<0>()
+        }
+
+        fn internal_get_price_of_strk_usd(self: @ContractState) -> u128 {
+            let asset_data_type = DataType::SpotEntry(KEY);
+            let oracle = IPragmaABIDispatcher {
+                contract_address: PRAGMA_ORACLE_ADDRESS.try_into().unwrap(),
+            };
+            let oracle_response = oracle.get_data(asset_data_type, AggregationMode::Median(()));
+            let price_of_strk_usd = oracle_response.price;
+            price_of_strk_usd
         }
     }
 }

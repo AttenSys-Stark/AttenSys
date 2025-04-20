@@ -1,15 +1,14 @@
-use starknet::{ContractAddress, contract_address_const, ClassHash};
-
-use snforge_std::{
-    declare, ContractClassTrait, start_cheat_caller_address, stop_cheat_caller_address,test_address, DeclareResultTrait
-};
 use attendsys::contracts::AttenSysCourse;
 use attendsys::contracts::AttenSysCourse::{
-    IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait, 
+    IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
 use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
-use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcher;
-use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcherTrait;
+use attendsys::contracts::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
+    stop_cheat_caller_address, test_address,
+};
+use starknet::{ClassHash, ContractAddress, contract_address_const};
 
 
 fn deploy_contract(name: ByteArray, hash: ClassHash) -> (ContractAddress, ClassHash) {
@@ -41,7 +40,7 @@ fn deploy_event_n_org_contract(
     _token_address.serialize(ref constuctor_arg);
     sponsor_contract_address.serialize(ref constuctor_arg);
 
-    let (contract_address, _) = ContractClassTrait::deploy(contract,@constuctor_arg).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constuctor_arg).unwrap();
 
     (contract_address, *contract.class_hash)
 }
@@ -58,21 +57,21 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     symbol.serialize(ref constructor_calldata);
 
     let contract = declare(name).unwrap().contract_class();
-    let (contract_address, _) = ContractClassTrait::deploy(contract,@constructor_calldata).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constructor_calldata)
+        .unwrap();
 
     (contract_address, *contract.class_hash)
 }
 
 
 #[test]
-fn test_course_upgradeability () {
+fn test_course_upgradeability() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     //first deployment here
     let (contract_address, course_hash) = deploy_contract("AttenSysCourse", hash);
 
     //second deployment here
     let (new_contract_address, new_course_hash) = deploy_contract("AttenSysCourse", hash);
-
 
     let admin: ContractAddress = contract_address_const::<'admin'>();
 
@@ -85,14 +84,13 @@ fn test_course_upgradeability () {
 
 #[test]
 #[should_panic]
-fn test_fake_course_contract_upgradeability () {
+fn test_fake_course_contract_upgradeability() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     //first deployment here
     let (contract_address, course_hash) = deploy_contract("AttenSysCourse", hash);
 
     //second deployment here
     let (new_contract_address, new_course_hash) = deploy_contract("AttenSysCourse", hash);
-
 
     let fake_admin: ContractAddress = contract_address_const::<'fake_admin'>();
 
@@ -104,13 +102,13 @@ fn test_fake_course_contract_upgradeability () {
 }
 
 #[test]
-fn test_event_contract_upgradeability () {
+fn test_event_contract_upgradeability() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     // mock event with test addresses for first deployment
     let (contract_address, hash) = deploy_event_n_org_contract(
         "AttenSysEvent", hash, test_address(), test_address(),
     );
-    
+
     // mock event with test addresses for second deployment
     let (new_contract_address, new_hash) = deploy_event_n_org_contract(
         "AttenSysEvent", hash, test_address(), test_address(),
@@ -124,13 +122,13 @@ fn test_event_contract_upgradeability () {
 }
 
 #[test]
-fn test_org_contract_upgradeability () {
+fn test_org_contract_upgradeability() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     // mock org with test addresses for first deployment
     let (contract_address, hash) = deploy_event_n_org_contract(
         "AttenSysOrg", hash, test_address(), test_address(),
     );
-    
+
     // mock org with test addresses for second deployment
     let (new_contract_address, new_hash) = deploy_event_n_org_contract(
         "AttenSysOrg", hash, test_address(), test_address(),

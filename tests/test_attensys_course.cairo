@@ -1,17 +1,16 @@
-use starknet::{ContractAddress, contract_address_const, ClassHash};
-
-use snforge_std::{
-    declare, ContractClassTrait, start_cheat_caller_address, stop_cheat_caller_address,DeclareResultTrait
-};
-
 use attendsys::contracts::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
+    stop_cheat_caller_address,
+};
+use starknet::{ClassHash, ContractAddress, contract_address_const};
 
 
- fn zero_address() -> ContractAddress {
-            contract_address_const::<0>()
-        }
+fn zero_address() -> ContractAddress {
+    contract_address_const::<0>()
+}
 
 fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
     let contract = declare(name).unwrap().contract_class();
@@ -38,7 +37,8 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     symbol.serialize(ref constructor_calldata);
 
     let contract = declare(name).unwrap().contract_class();
-    let (contract_address, _) = ContractClassTrait::deploy(contract,@constructor_calldata).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constructor_calldata)
+        .unwrap();
 
     (contract_address, *contract.class_hash)
 }
@@ -135,6 +135,7 @@ fn test_claim_admin_should_panic_for_wrong_new_admin() {
 }
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 #[should_panic(expected: 'not original creator')]
 fn test_remove_course_for_wrong_admin() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -149,7 +150,7 @@ fn test_remove_course_for_wrong_admin() {
     let symbol: ByteArray = "TC";
 
     start_cheat_caller_address(contract_address, owner);
-    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2);
+    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2, 0);
     stop_cheat_caller_address(contract_address);
 
     // wrong Owner attempts to remove course
@@ -160,6 +161,7 @@ fn test_remove_course_for_wrong_admin() {
 }
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_remove_course_for_right_admin() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);
@@ -172,14 +174,14 @@ fn test_remove_course_for_right_admin() {
     let symbol: ByteArray = "TC";
 
     start_cheat_caller_address(contract_address, owner);
-    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2);
+    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2, 0);
     assert(
-        attensys_course_contract.get_course_nft_contract(1) !=  zero_address(),
+        attensys_course_contract.get_course_nft_contract(1) != zero_address(),
         'course hasnt been created',
     );
     attensys_course_contract.remove_course(1);
     assert(
-        attensys_course_contract.get_course_nft_contract(1) ==  zero_address(),
+        attensys_course_contract.get_course_nft_contract(1) == zero_address(),
         'course hasnt been removed',
     );
 
@@ -188,6 +190,7 @@ fn test_remove_course_for_right_admin() {
 
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_check_course_completion_status() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);
@@ -201,7 +204,7 @@ fn test_check_course_completion_status() {
     let symbol: ByteArray = "TC";
 
     start_cheat_caller_address(contract_address, owner);
-    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2);
+    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2, 0);
 
     // Test initial completion status is false
     let initial_status = attensys_course_contract
@@ -222,6 +225,7 @@ fn test_check_course_completion_status() {
 
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 #[should_panic(expected: 'already acquired')]
 fn test_acquire_a_course() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -236,7 +240,7 @@ fn test_acquire_a_course() {
     let symbol: ByteArray = "TC";
 
     start_cheat_caller_address(contract_address, owner);
-    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2);
+    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2, 0);
     stop_cheat_caller_address(contract_address);
 
     start_cheat_caller_address(contract_address, student);
@@ -247,6 +251,7 @@ fn test_acquire_a_course() {
 }
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_get_total_course_completions() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);
@@ -261,7 +266,7 @@ fn test_get_total_course_completions() {
     let symbol: ByteArray = "TC";
 
     start_cheat_caller_address(contract_address, owner);
-    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2);
+    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2, 0);
 
     let initial_count = attensys_course_contract.get_total_course_completions(1);
     assert(initial_count == 0, 'initial count should be 0');
@@ -283,6 +288,7 @@ fn test_get_total_course_completions() {
 
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 #[should_panic(expected: 'Not admin')]
 fn test_non_admin_cannot_suspend_or_unsuspend_course() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -299,7 +305,7 @@ fn test_non_admin_cannot_suspend_or_unsuspend_course() {
 
     // Owner creates course
     start_cheat_caller_address(contract_address, owner);
-    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2);
+    attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2, 0);
     stop_cheat_caller_address(contract_address);
 
     // Non-admin tries to suspend
@@ -309,6 +315,7 @@ fn test_non_admin_cannot_suspend_or_unsuspend_course() {
 }
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_toggle_suspension() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);
@@ -323,7 +330,7 @@ fn test_toggle_suspension() {
 
     // Owner creates course
     start_cheat_caller_address(contract_address, admin);
-    attensys_course_contract.create_course(admin, true, base_uri, name, symbol, base_uri_2);
+    attensys_course_contract.create_course(admin, true, base_uri, name, symbol, base_uri_2, 0);
     // let current_suspension_status = attensys_course_contract.course_suspended.entry(1).read();
 
     //newly created course.is_suspended should be false

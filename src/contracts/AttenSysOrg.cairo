@@ -1,4 +1,4 @@
-use core::starknet::{ContractAddress, ClassHash};
+use core::starknet::{ClassHash, ContractAddress};
 
 #[starknet::interface]
 pub trait IAttenSysOrg<TContractState> {
@@ -47,9 +47,12 @@ pub trait IAttenSysOrg<TContractState> {
         class_id: u64,
         bootcamp_id: u64,
     );
-    fn batch_certify_students(ref self: TContractState, org_: ContractAddress, bootcamp_id: u64,);
+    fn batch_certify_students(ref self: TContractState, org_: ContractAddress, bootcamp_id: u64);
     fn single_certify_student(
-        ref self: TContractState, org_: ContractAddress, bootcamp_id: u64, students: ContractAddress
+        ref self: TContractState,
+        org_: ContractAddress,
+        bootcamp_id: u64,
+        students: ContractAddress,
     );
     fn setSponsorShipAddress(ref self: TContractState, sponsor_contract_address: ContractAddress);
     fn sponsor_organization(
@@ -106,26 +109,26 @@ pub trait IAttenSysOrg<TContractState> {
     ) -> bool;
     fn is_org_suspended(self: @TContractState, org_: ContractAddress) -> bool;
     fn get_registered_bootcamp(
-        self: @TContractState, student: ContractAddress
+        self: @TContractState, student: ContractAddress,
     ) -> Array<AttenSysOrg::RegisteredBootcamp>;
     fn get_specific_organization_registered_bootcamp(
-        self: @TContractState, org: ContractAddress, student: ContractAddress
+        self: @TContractState, org: ContractAddress, student: ContractAddress,
     ) -> Array<AttenSysOrg::RegisteredBootcamp>;
     fn get_class_attendance_status(
         self: @TContractState,
         org: ContractAddress,
         bootcamp_id: u64,
         class_id: u64,
-        student: ContractAddress
+        student: ContractAddress,
     ) -> bool;
     fn get_all_bootcamp_classes(
-        self: @TContractState, org: ContractAddress, bootcamp_id: u64
+        self: @TContractState, org: ContractAddress, bootcamp_id: u64,
     ) -> Array<u64>;
     fn get_certified_student_bootcamp_address(
-        self: @TContractState, org: ContractAddress, bootcamp_id: u64
+        self: @TContractState, org: ContractAddress, bootcamp_id: u64,
     ) -> Array<ContractAddress>;
     fn get_bootcamp_certification_status(
-        self: @TContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress
+        self: @TContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress,
     ) -> bool;
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
 }
@@ -135,68 +138,66 @@ pub trait IAttenSysOrg<TContractState> {
 //The contract
 #[starknet::contract]
 pub mod AttenSysOrg {
-    use starknet::event::EventEmitter;
-    use core::starknet::{
-        ContractAddress, ClassHash, get_caller_address, syscalls::deploy_syscall,
-        contract_address_const,
-    };
-    use core::starknet::storage::{
-        Map, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess, Vec, VecTrait,
-        MutableVecTrait,
+    use attendsys::contracts::AttenSysSponsor::{
+        IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
     };
     use core::num::traits::Zero;
-    use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
-    use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcher;
-
+    use core::starknet::storage::{
+        Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
+        Vec, VecTrait,
+    };
+    use core::starknet::syscalls::deploy_syscall;
+    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address};
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
+    use starknet::event::EventEmitter;
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
     component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
 
-     /// Ownable
-     #[abi(embed_v0)]
-     impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
-     impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
- 
-     /// Upgradeable
-     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
+    /// Ownable
+    #[abi(embed_v0)]
+    impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
+    impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+
+    /// Upgradeable
+    impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
 
     #[storage]
     struct Storage {
         // save an organization profile and return info when needed.
-        organization_info: Map::<ContractAddress, Organization>,
+        organization_info: Map<ContractAddress, Organization>,
         // save all organization info
         all_org_info: Vec<Organization>,
         // save all bootcamps
         all_bootcamps_created: Vec<Bootcamp>,
         // status of org creator address
-        created_status: Map::<ContractAddress, bool>,
+        created_status: Map<ContractAddress, bool>,
         // org to balance_of_sponsorship
-        org_to_balance_of_sponsorship: Map::<ContractAddress, u256>,
+        org_to_balance_of_sponsorship: Map<ContractAddress, u256>,
         // save instructors of org in an array
-        org_to_instructors: Map::<ContractAddress, Vec<Instructor>>,
+        org_to_instructors: Map<ContractAddress, Vec<Instructor>>,
         // save bootcamps of org in an array
-        org_to_bootcamps: Map::<ContractAddress, Vec<Bootcamp>>,
+        org_to_bootcamps: Map<ContractAddress, Vec<Bootcamp>>,
         // org to uploaded ipfs video links
-        org_to_uploaded_videos_link: Map::<(ContractAddress, u64), Vec<ByteArray>>,
+        org_to_uploaded_videos_link: Map<(ContractAddress, u64), Vec<ByteArray>>,
         //validate that an instructor is associated to an org
-        instructor_part_of_org: Map::<(ContractAddress, ContractAddress), bool>,
+        instructor_part_of_org: Map<(ContractAddress, ContractAddress), bool>,
         // instructor as key
-        instructor_key_to_info: Map::<ContractAddress, Vec<Instructor>>,
+        instructor_key_to_info: Map<ContractAddress, Vec<Instructor>>,
         //maps org and instructor to classes
-        org_instructor_classes: Map::<(ContractAddress, ContractAddress), Vec<Class>>,
+        org_instructor_classes: Map<(ContractAddress, ContractAddress), Vec<Class>>,
         // track the number of classes a single student has registered for.
-        student_to_classes: Map::<ContractAddress, Vec<Class>>,
+        student_to_classes: Map<ContractAddress, Vec<Class>>,
         // update and retrieve students info
-        student_info: Map::<ContractAddress, Student>,
+        student_info: Map<ContractAddress, Student>,
         //saves attendance status of students
-        student_attendance_status: Map::<(ContractAddress, u64, u64, ContractAddress), bool>,
+        student_attendance_status: Map<(ContractAddress, u64, u64, ContractAddress), bool>,
         //saves attendance status of students
         inst_student_status: Map<ContractAddress, Map<ContractAddress, bool>>,
         //cerified course, student ---> true
-        certify_student: Map::<(ContractAddress, u64, ContractAddress), bool>,
+        certify_student: Map<(ContractAddress, u64, ContractAddress), bool>,
         //nft classhash
         hash: ClassHash,
         // the currency used on the platform
@@ -210,19 +211,19 @@ pub mod AttenSysOrg {
         // map org to all requested registration
         org_to_requests: Map<ContractAddress, Vec<Student>>,
         // map org => suspension status
-        org_suspended: Map::<ContractAddress, bool>,
+        org_suspended: Map<ContractAddress, bool>,
         // map org => bootcamp => suspension status
-        bootcamp_suspended: Map::<ContractAddress, Map<u64, bool>>,
+        bootcamp_suspended: Map<ContractAddress, Map<u64, bool>>,
         //maps student address to vec of bootcamps
-        student_address_to_bootcamps: Map::<ContractAddress, Vec<RegisteredBootcamp>>,
+        student_address_to_bootcamps: Map<ContractAddress, Vec<RegisteredBootcamp>>,
         //maps student address to org address to specific bootcamp
-        student_address_to_specific_bootcamp: Map::<
-            (ContractAddress, ContractAddress), Vec<RegisteredBootcamp>
+        student_address_to_specific_bootcamp: Map<
+            (ContractAddress, ContractAddress), Vec<RegisteredBootcamp>,
         >,
         //maps org to bootcamp to classID
-        bootcamp_class_data_id: Map::<(ContractAddress, u64), Vec<u64>>,
+        bootcamp_class_data_id: Map<(ContractAddress, u64), Vec<u64>>,
         //saves all certifed student for each bootcamp
-        certified_students_for_bootcamp: Map::<(ContractAddress, u64), Vec<ContractAddress>>,
+        certified_students_for_bootcamp: Map<(ContractAddress, u64), Vec<ContractAddress>>,
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
         #[substorage(v0)]
@@ -354,6 +355,7 @@ pub mod AttenSysOrg {
     #[derive(Drop, starknet::Event)]
     pub struct InstructorAddedToOrg {
         pub org_name: ByteArray,
+        pub org_address: ContractAddress,
         #[key]
         pub instructor: Array<ContractAddress>,
     }
@@ -367,6 +369,7 @@ pub mod AttenSysOrg {
     #[derive(Drop, starknet::Event)]
     pub struct BootCampCreated {
         pub org_name: ByteArray,
+        pub org_address: ContractAddress,
         pub bootcamp_name: ByteArray,
         pub nft_name: ByteArray,
         pub nft_symbol: ByteArray,
@@ -533,16 +536,12 @@ pub mod AttenSysOrg {
             if status {
                 //assert organization not suspended
                 assert(!self.org_suspended.entry(caller).read(), 'organization suspended');
-                for i in 0
-                    ..instructor
-                        .len() {
-                            add_instructor_to_org(
-                                ref self, caller, *instructor[i], org_name.clone()
-                            );
-                        };
+                for i in 0..instructor.len() {
+                    add_instructor_to_org(ref self, caller, *instructor[i], org_name.clone());
+                }
                 self
                     .emit(
-                        InstructorAddedToOrg { org_name: org_name.clone(), instructor: instructor },
+                        InstructorAddedToOrg { org_name: org_name.clone(), org_address: caller, instructor: instructor },
                     )
             } else {
                 panic!("no organization created.");
@@ -571,38 +570,32 @@ pub mod AttenSysOrg {
                     let instructors_in_org = self.org_to_instructors.entry(caller);
 
                     // let mut addresses : Vec<Instructor> = array![];
-                    for i in 0
-                        ..instructors_in_org
-                            .len() {
-                                let derived_instructor = self
-                                    .org_to_instructors
-                                    .entry(caller)
-                                    .at(i)
-                                    .read()
-                                    .address_of_instructor;
+                    for i in 0..instructors_in_org.len() {
+                        let derived_instructor = self
+                            .org_to_instructors
+                            .entry(caller)
+                            .at(i)
+                            .read()
+                            .address_of_instructor;
 
-                                if instructor == derived_instructor {
-                                    // replace the last guy in the spot of the removed instructor
-                                    let lastInstructor = self
-                                        .org_to_instructors
-                                        .entry(caller)
-                                        .at(instructors_in_org.len() - 1)
-                                        .read();
-                                    self
-                                        .org_to_instructors
-                                        .entry(caller)
-                                        .at(i)
-                                        .write(lastInstructor);
-                                }
+                        if instructor == derived_instructor {
+                            // replace the last guy in the spot of the removed instructor
+                            let lastInstructor = self
+                                .org_to_instructors
+                                .entry(caller)
+                                .at(instructors_in_org.len() - 1)
+                                .read();
+                            self.org_to_instructors.entry(caller).at(i).write(lastInstructor);
+                        }
 
-                                // Event ng for removing an inspector
-                                self
-                                    .emit(
-                                        InstructorRemovedFromOrg {
-                                            instructor_addr: instructor, org_owner: caller,
-                                        },
-                                    )
-                            }
+                        // Event ng for removing an inspector
+                        self
+                            .emit(
+                                InstructorRemovedFromOrg {
+                                    instructor_addr: instructor, org_owner: caller,
+                                },
+                            )
+                    }
                 } else {
                     panic!("not an instructor.");
                 }
@@ -740,6 +733,7 @@ pub mod AttenSysOrg {
                     .emit(
                         BootCampCreated {
                             org_name: org_name,
+                            org_address: caller,
                             bootcamp_name: bootcamp_name,
                             nft_name: nft_name,
                             nft_symbol: nft_symbol,
@@ -833,39 +827,37 @@ pub mod AttenSysOrg {
                     'Bootcamp suspended',
                 );
                 let mut bootcamp = self.org_to_bootcamps.entry(org_);
-                for i in 0
-                    ..bootcamp
-                        .len() {
-                            if i == bootcamp_id {
-                                let mut student: Student = self.student_info.entry(caller).read();
-                                student
-                                    .num_of_bootcamps_registered_for = student
-                                    .num_of_bootcamps_registered_for
-                                    + 1;
-                                student.student_details_uri = student_uri.clone();
-                                self.student_info.entry(caller).write(student);
-                                self
-                                    .org_to_requests
-                                    .entry(org_)
-                                    .append()
-                                    .write(
-                                        Student {
-                                            address_of_student: caller,
-                                            num_of_bootcamps_registered_for: self
-                                                .student_info
-                                                .entry(caller)
-                                                .read()
-                                                .num_of_bootcamps_registered_for,
-                                            status: 0,
-                                            student_details_uri: self
-                                                .student_info
-                                                .entry(caller)
-                                                .read()
-                                                .student_details_uri,
-                                        },
-                                    );
-                            }
-                        };
+                for i in 0..bootcamp.len() {
+                    if i == bootcamp_id {
+                        let mut student: Student = self.student_info.entry(caller).read();
+                        student
+                            .num_of_bootcamps_registered_for = student
+                            .num_of_bootcamps_registered_for
+                            + 1;
+                        student.student_details_uri = student_uri.clone();
+                        self.student_info.entry(caller).write(student);
+                        self
+                            .org_to_requests
+                            .entry(org_)
+                            .append()
+                            .write(
+                                Student {
+                                    address_of_student: caller,
+                                    num_of_bootcamps_registered_for: self
+                                        .student_info
+                                        .entry(caller)
+                                        .read()
+                                        .num_of_bootcamps_registered_for,
+                                    status: 0,
+                                    student_details_uri: self
+                                        .student_info
+                                        .entry(caller)
+                                        .read()
+                                        .student_details_uri,
+                                },
+                            );
+                    }
+                }
 
                 self.emit(BootcampRegistration { org_address: org_, bootcamp_id: bootcamp_id });
             } else {
@@ -879,64 +871,55 @@ pub mod AttenSysOrg {
             let caller = get_caller_address();
             let status: bool = self.created_status.entry(caller).read();
             if status {
-                for i in 0
-                    ..self
+                for i in 0..self.org_to_requests.entry(caller).len() {
+                    if self
                         .org_to_requests
                         .entry(caller)
-                        .len() {
-                            if self
-                                .org_to_requests
-                                .entry(caller)
-                                .at(i)
-                                .read()
-                                .address_of_student == student_address {
-                                let mut student = self.org_to_requests.entry(caller).at(i).read();
-                                student.status = 1;
-                                self.org_to_requests.entry(caller).at(i).write(student);
+                        .at(i)
+                        .read()
+                        .address_of_student == student_address {
+                        let mut student = self.org_to_requests.entry(caller).at(i).read();
+                        student.status = 1;
+                        self.org_to_requests.entry(caller).at(i).write(student);
 
-                                let mut the_bootcamp: Bootcamp = self
-                                    .org_to_bootcamps
-                                    .entry(caller)
-                                    .at(bootcamp_id)
-                                    .read();
+                        let mut the_bootcamp: Bootcamp = self
+                            .org_to_bootcamps
+                            .entry(caller)
+                            .at(bootcamp_id)
+                            .read();
 
-                                the_bootcamp.number_of_students = the_bootcamp.number_of_students
-                                    + 1;
-                                self
-                                    .org_to_bootcamps
-                                    .entry(caller)
-                                    .at(bootcamp_id)
-                                    .write(the_bootcamp);
-                                self
-                                    .student_address_to_specific_bootcamp
-                                    .entry((caller, student_address))
-                                    .append()
-                                    .write(
-                                        RegisteredBootcamp {
-                                            address_of_org: caller,
-                                            student: student_address.clone(),
-                                            acceptance_status: true,
-                                            bootcamp_id: bootcamp_id,
-                                        },
-                                    );
-                                self
-                                    .student_address_to_bootcamps
-                                    .entry(student_address)
-                                    .append()
-                                    .write(
-                                        RegisteredBootcamp {
-                                            address_of_org: caller,
-                                            student: student_address,
-                                            acceptance_status: true,
-                                            bootcamp_id: bootcamp_id,
-                                        },
-                                    );
-                            }
-                            // update organization and instructor data
-                            let mut org = self.organization_info.entry(caller).read();
-                            org.number_of_students = org.number_of_students + 1;
-                            self.organization_info.entry(caller).write(org);
-                        };
+                        the_bootcamp.number_of_students = the_bootcamp.number_of_students + 1;
+                        self.org_to_bootcamps.entry(caller).at(bootcamp_id).write(the_bootcamp);
+                        self
+                            .student_address_to_specific_bootcamp
+                            .entry((caller, student_address))
+                            .append()
+                            .write(
+                                RegisteredBootcamp {
+                                    address_of_org: caller,
+                                    student: student_address.clone(),
+                                    acceptance_status: true,
+                                    bootcamp_id: bootcamp_id,
+                                },
+                            );
+                        self
+                            .student_address_to_bootcamps
+                            .entry(student_address)
+                            .append()
+                            .write(
+                                RegisteredBootcamp {
+                                    address_of_org: caller,
+                                    student: student_address,
+                                    acceptance_status: true,
+                                    bootcamp_id: bootcamp_id,
+                                },
+                            );
+                    }
+                    // update organization and instructor data
+                    let mut org = self.organization_info.entry(caller).read();
+                    org.number_of_students = org.number_of_students + 1;
+                    self.organization_info.entry(caller).write(org);
+                }
 
                 self
                     .emit(
@@ -955,22 +938,18 @@ pub mod AttenSysOrg {
             let caller = get_caller_address();
             let status: bool = self.created_status.entry(caller).read();
             if status {
-                for i in 0
-                    ..self
+                for i in 0..self.org_to_requests.entry(caller).len() {
+                    if self
                         .org_to_requests
                         .entry(caller)
-                        .len() {
-                            if self
-                                .org_to_requests
-                                .entry(caller)
-                                .at(i)
-                                .read()
-                                .address_of_student == student_address {
-                                let mut student = self.org_to_requests.entry(caller).at(i).read();
-                                student.status = 2;
-                                self.org_to_requests.entry(caller).at(i).write(student);
-                            }
-                        };
+                        .at(i)
+                        .read()
+                        .address_of_student == student_address {
+                        let mut student = self.org_to_requests.entry(caller).at(i).read();
+                        student.status = 2;
+                        self.org_to_requests.entry(caller).at(i).write(student);
+                    }
+                }
 
                 self
                     .emit(
@@ -1030,65 +1009,42 @@ pub mod AttenSysOrg {
             assert(is_instructor, 'not an instructor');
 
             let mut arr_of_request = array![];
-            for i in 0
-                ..self
-                    .org_to_requests
-                    .entry(org_)
-                    .len() {
-                        if self.org_to_requests.entry(org_).at(i).status.read() == 1 {
-                            arr_of_request
-                                .append(
-                                    self.org_to_requests.entry(org_).at(i).address_of_student.read()
-                                );
-                        }
-                    };
+            for i in 0..self.org_to_requests.entry(org_).len() {
+                if self.org_to_requests.entry(org_).at(i).status.read() == 1 {
+                    arr_of_request
+                        .append(self.org_to_requests.entry(org_).at(i).address_of_student.read());
+                }
+            }
             let mut class_id_arr = array![];
-            for i in 0
-                ..self
-                    .bootcamp_class_data_id
-                    .entry((org_, bootcamp_id))
-                    .len() {
-                        class_id_arr
-                            .append(
-                                self.bootcamp_class_data_id.entry((org_, bootcamp_id)).at(i).read()
-                            );
-                    };
+            for i in 0..self.bootcamp_class_data_id.entry((org_, bootcamp_id)).len() {
+                class_id_arr
+                    .append(self.bootcamp_class_data_id.entry((org_, bootcamp_id)).at(i).read());
+            }
             //@todo mint an nft associated to the bootcamp to each student.
-            for i in 0
-                ..arr_of_request
-                    .len() {
-                        for k in 0
-                            ..class_id_arr
-                                .len() {
-                                    let reg_status = self
-                                        .student_attendance_status
-                                        .entry(
-                                            (
-                                                org_,
-                                                bootcamp_id,
-                                                *class_id_arr.at(k),
-                                                *arr_of_request.at(i)
-                                            )
-                                        )
-                                        .read();
-                                    if reg_status {
-                                        attendance_counter += 1;
-                                    }
-                                };
-                        let attendance_criteria = class_id_arr.len() * (1 / 2);
-                        if attendance_counter > attendance_criteria {
-                            self
-                                .certify_student
-                                .entry((org_, bootcamp_id, *arr_of_request.at(i)))
-                                .write(true);
-                            self
-                                .certified_students_for_bootcamp
-                                .entry((org_, bootcamp_id))
-                                .append()
-                                .write(*arr_of_request.at(i));
-                            attendance_counter = 0;
-                        };
-                    };
+            for i in 0..arr_of_request.len() {
+                for k in 0..class_id_arr.len() {
+                    let reg_status = self
+                        .student_attendance_status
+                        .entry((org_, bootcamp_id, *class_id_arr.at(k), *arr_of_request.at(i)))
+                        .read();
+                    if reg_status {
+                        attendance_counter += 1;
+                    }
+                }
+                let attendance_criteria = class_id_arr.len() * (1 / 2);
+                if attendance_counter > attendance_criteria {
+                    self
+                        .certify_student
+                        .entry((org_, bootcamp_id, *arr_of_request.at(i)))
+                        .write(true);
+                    self
+                        .certified_students_for_bootcamp
+                        .entry((org_, bootcamp_id))
+                        .append()
+                        .write(*arr_of_request.at(i));
+                    attendance_counter = 0;
+                };
+            }
             self
                 .emit(
                     StudentsCertified {
@@ -1100,7 +1056,7 @@ pub mod AttenSysOrg {
             ref self: ContractState,
             org_: ContractAddress,
             bootcamp_id: u64,
-            students: ContractAddress
+            students: ContractAddress,
         ) {
             let caller = get_caller_address();
             let is_instructor = self.instructor_part_of_org.entry((org_, caller)).read();
@@ -1229,14 +1185,9 @@ pub mod AttenSysOrg {
         fn get_all_org_bootcamps(self: @ContractState, org_: ContractAddress) -> Array<Bootcamp> {
             let mut arr_of_all_created_bootcamps = array![];
 
-            for i in 0
-                ..self
-                    .org_to_bootcamps
-                    .entry(org_)
-                    .len() {
-                        arr_of_all_created_bootcamps
-                            .append(self.org_to_bootcamps.entry(org_).at(i).read());
-                    };
+            for i in 0..self.org_to_bootcamps.entry(org_).len() {
+                arr_of_all_created_bootcamps.append(self.org_to_bootcamps.entry(org_).at(i).read());
+            }
 
             arr_of_all_created_bootcamps
         }
@@ -1253,20 +1204,12 @@ pub mod AttenSysOrg {
         ) -> Array<ByteArray> {
             let mut arr_of_all_uploaded_bootcamps_link = array![];
 
-            for i in 0
-                ..self
-                    .org_to_uploaded_videos_link
-                    .entry((org_, bootcamp_id))
-                    .len() {
-                        arr_of_all_uploaded_bootcamps_link
-                            .append(
-                                self
-                                    .org_to_uploaded_videos_link
-                                    .entry((org_, bootcamp_id))
-                                    .at(i)
-                                    .read(),
-                            );
-                    };
+            for i in 0..self.org_to_uploaded_videos_link.entry((org_, bootcamp_id)).len() {
+                arr_of_all_uploaded_bootcamps_link
+                    .append(
+                        self.org_to_uploaded_videos_link.entry((org_, bootcamp_id)).at(i).read(),
+                    );
+            }
             arr_of_all_uploaded_bootcamps_link
         }
 
@@ -1274,13 +1217,10 @@ pub mod AttenSysOrg {
         fn get_all_bootcamps_on_platform(self: @ContractState) -> Array<Bootcamp> {
             let mut arr_of_all_created_bootcamps_on_platform = array![];
 
-            for i in 0
-                ..self
-                    .all_bootcamps_created
-                    .len() {
-                        arr_of_all_created_bootcamps_on_platform
-                            .append(self.all_bootcamps_created.at(i).read());
-                    };
+            for i in 0..self.all_bootcamps_created.len() {
+                arr_of_all_created_bootcamps_on_platform
+                    .append(self.all_bootcamps_created.at(i).read());
+            }
 
             arr_of_all_created_bootcamps_on_platform
         }
@@ -1291,74 +1231,58 @@ pub mod AttenSysOrg {
             let mut arr_of_instructors = array![];
             let mut arr_of_all_created_classes = array![];
 
-            for i in 0
-                ..self
-                    .all_org_info
-                    .len() {
-                        // let i_u32: u32 = i.try_into().unwrap();
-                        arr_of_org.append(self.all_org_info.at(i).read());
-                        let i_u32: u32 = i.try_into().unwrap();
+            for i in 0..self.all_org_info.len() {
+                // let i_u32: u32 = i.try_into().unwrap();
+                arr_of_org.append(self.all_org_info.at(i).read());
+                let i_u32: u32 = i.try_into().unwrap();
 
-                        for j in 0
-                            ..self
+                for j in 0
+                    ..self.org_to_instructors.entry(*arr_of_org.at(i_u32).address_of_org).len() {
+                    let j_u32: u32 = j.try_into().unwrap();
+                    arr_of_instructors
+                        .append(
+                            self
                                 .org_to_instructors
                                 .entry(*arr_of_org.at(i_u32).address_of_org)
-                                .len() {
-                                    let j_u32: u32 = j.try_into().unwrap();
-                                    arr_of_instructors
-                                        .append(
-                                            self
-                                                .org_to_instructors
-                                                .entry(*arr_of_org.at(i_u32).address_of_org)
-                                                .at(j)
-                                                .read(),
-                                        );
+                                .at(j)
+                                .read(),
+                        );
 
-                                    for k in 0
-                                        ..self
-                                            .org_instructor_classes
-                                            .entry(
-                                                (
-                                                    *arr_of_org.at(i_u32).address_of_org,
-                                                    *arr_of_instructors
-                                                        .at(j_u32)
-                                                        .address_of_instructor,
-                                                ),
-                                            )
-                                            .len() {
-                                                arr_of_all_created_classes
-                                                    .append(
-                                                        self
-                                                            .org_instructor_classes
-                                                            .entry(
-                                                                (
-                                                                    *arr_of_org
-                                                                        .at(i_u32)
-                                                                        .address_of_org,
-                                                                    *arr_of_instructors
-                                                                        .at(j_u32)
-                                                                        .address_of_instructor,
-                                                                ),
-                                                            )
-                                                            .at(k)
-                                                            .read(),
-                                                    );
-                                            }
-                                }
-                    };
+                    for k in 0
+                        ..self
+                            .org_instructor_classes
+                            .entry(
+                                (
+                                    *arr_of_org.at(i_u32).address_of_org,
+                                    *arr_of_instructors.at(j_u32).address_of_instructor,
+                                ),
+                            )
+                            .len() {
+                        arr_of_all_created_classes
+                            .append(
+                                self
+                                    .org_instructor_classes
+                                    .entry(
+                                        (
+                                            *arr_of_org.at(i_u32).address_of_org,
+                                            *arr_of_instructors.at(j_u32).address_of_instructor,
+                                        ),
+                                    )
+                                    .at(k)
+                                    .read(),
+                            );
+                    }
+                }
+            }
 
             arr_of_all_created_classes
         }
 
         fn get_student_classes(self: @ContractState, student: ContractAddress) -> Array<Class> {
             let mut arr = array![];
-            for i in 0
-                ..self
-                    .student_to_classes
-                    .entry(student)
-                    .len() {
-                        arr.append(self.student_to_classes.entry(student).at(i).read());
-                    };
+            for i in 0..self.student_to_classes.entry(student).len() {
+                arr.append(self.student_to_classes.entry(student).at(i).read());
+            }
             arr
         }
 
@@ -1366,29 +1290,18 @@ pub mod AttenSysOrg {
             self: @ContractState, org_: ContractAddress, instructor: ContractAddress,
         ) -> Array<Class> {
             let mut arr = array![];
-            for i in 0
-                ..self
-                    .org_instructor_classes
-                    .entry((org_, instructor))
-                    .len() {
-                        arr
-                            .append(
-                                self.org_instructor_classes.entry((org_, instructor)).at(i).read()
-                            );
-                    };
+            for i in 0..self.org_instructor_classes.entry((org_, instructor)).len() {
+                arr.append(self.org_instructor_classes.entry((org_, instructor)).at(i).read());
+            }
             arr
         }
 
         // each orgnization/school should have info for instructors, & students
         fn get_org_instructors(self: @ContractState, org_: ContractAddress) -> Array<Instructor> {
             let mut arr = array![];
-            for i in 0
-                ..self
-                    .org_to_instructors
-                    .entry(org_)
-                    .len() {
-                        arr.append(self.org_to_instructors.entry(org_).at(i).read());
-                    };
+            for i in 0..self.org_to_instructors.entry(org_).len() {
+                arr.append(self.org_to_instructors.entry(org_).at(i).read());
+            }
             arr
         }
 
@@ -1401,7 +1314,7 @@ pub mod AttenSysOrg {
             let mut arr = array![];
             for i in 0..self.all_org_info.len() {
                 arr.append(self.all_org_info.at(i).read());
-            };
+            }
             arr
         }
 
@@ -1420,13 +1333,9 @@ pub mod AttenSysOrg {
             self: @ContractState, instructor: ContractAddress,
         ) -> Array<Instructor> {
             let mut arr = array![];
-            for i in 0
-                ..self
-                    .instructor_key_to_info
-                    .entry(instructor)
-                    .len() {
-                        arr.append(self.instructor_key_to_info.entry(instructor).at(i).read());
-                    };
+            for i in 0..self.instructor_key_to_info.entry(instructor).len() {
+                arr.append(self.instructor_key_to_info.entry(instructor).at(i).read());
+            }
             arr
         }
         fn get_bootcamp_info(
@@ -1477,37 +1386,29 @@ pub mod AttenSysOrg {
         }
 
         fn get_registered_bootcamp(
-            self: @ContractState, student: ContractAddress
+            self: @ContractState, student: ContractAddress,
         ) -> Array<RegisteredBootcamp> {
             let mut array_of_reg_bootcamp = array![];
-            for i in 0
-                ..self
-                    .student_address_to_bootcamps
-                    .entry(student)
-                    .len() {
-                        array_of_reg_bootcamp
-                            .append(self.student_address_to_bootcamps.entry(student).at(i).read());
-                    };
+            for i in 0..self.student_address_to_bootcamps.entry(student).len() {
+                array_of_reg_bootcamp
+                    .append(self.student_address_to_bootcamps.entry(student).at(i).read());
+            }
             array_of_reg_bootcamp
         }
         fn get_specific_organization_registered_bootcamp(
-            self: @ContractState, org: ContractAddress, student: ContractAddress
+            self: @ContractState, org: ContractAddress, student: ContractAddress,
         ) -> Array<RegisteredBootcamp> {
             let mut array_of_specific_org_reg_bootcamp = array![];
-            for i in 0
-                ..self
-                    .student_address_to_specific_bootcamp
-                    .entry((org, student))
-                    .len() {
-                        array_of_specific_org_reg_bootcamp
-                            .append(
-                                self
-                                    .student_address_to_specific_bootcamp
-                                    .entry((org, student))
-                                    .at(i)
-                                    .read()
-                            );
-                    };
+            for i in 0..self.student_address_to_specific_bootcamp.entry((org, student)).len() {
+                array_of_specific_org_reg_bootcamp
+                    .append(
+                        self
+                            .student_address_to_specific_bootcamp
+                            .entry((org, student))
+                            .at(i)
+                            .read(),
+                    );
+            }
             array_of_specific_org_reg_bootcamp
         }
         fn get_class_attendance_status(
@@ -1515,7 +1416,7 @@ pub mod AttenSysOrg {
             org: ContractAddress,
             bootcamp_id: u64,
             class_id: u64,
-            student: ContractAddress
+            student: ContractAddress,
         ) -> bool {
             let mut instructor_class = self
                 .org_instructor_classes
@@ -1534,47 +1435,32 @@ pub mod AttenSysOrg {
         }
 
         fn get_all_bootcamp_classes(
-            self: @ContractState, org: ContractAddress, bootcamp_id: u64
+            self: @ContractState, org: ContractAddress, bootcamp_id: u64,
         ) -> Array<u64> {
             let mut arr = array![];
-            for i in 0
-                ..self
-                    .bootcamp_class_data_id
-                    .entry((org, bootcamp_id))
-                    .len() {
-                        arr
-                            .append(
-                                self.bootcamp_class_data_id.entry((org, bootcamp_id)).at(i).read()
-                            );
-                    };
+            for i in 0..self.bootcamp_class_data_id.entry((org, bootcamp_id)).len() {
+                arr.append(self.bootcamp_class_data_id.entry((org, bootcamp_id)).at(i).read());
+            }
             arr
         }
         fn get_certified_student_bootcamp_address(
-            self: @ContractState, org: ContractAddress, bootcamp_id: u64
+            self: @ContractState, org: ContractAddress, bootcamp_id: u64,
         ) -> Array<ContractAddress> {
             let mut arr = array![];
-            for i in 0
-                ..self
-                    .certified_students_for_bootcamp
-                    .entry((org, bootcamp_id))
-                    .len() {
-                        arr
-                            .append(
-                                self
-                                    .certified_students_for_bootcamp
-                                    .entry((org, bootcamp_id))
-                                    .at(i)
-                                    .read()
-                            );
-                    };
+            for i in 0..self.certified_students_for_bootcamp.entry((org, bootcamp_id)).len() {
+                arr
+                    .append(
+                        self.certified_students_for_bootcamp.entry((org, bootcamp_id)).at(i).read(),
+                    );
+            }
             arr
         }
         fn get_bootcamp_certification_status(
-            self: @ContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress
+            self: @ContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress,
         ) -> bool {
             self.certify_student.entry((org, bootcamp_id, student)).read()
         }
-        
+
         fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
             // This function can only be called by the owner
             self.ownable.assert_only_owner();
@@ -1608,14 +1494,13 @@ pub mod AttenSysOrg {
             org.number_of_all_classes += num_of_class_to_create;
             self.organization_info.entry(org_).write(org);
 
-            for i in 0
-                ..num_of_class_to_create {
-                    self
-                        .bootcamp_class_data_id
-                        .entry((org_, bootcamp_id))
-                        .append()
-                        .write(i.try_into().unwrap())
-                }
+            for i in 0..num_of_class_to_create {
+                self
+                    .bootcamp_class_data_id
+                    .entry((org_, bootcamp_id))
+                    .append()
+                    .write(i.try_into().unwrap())
+            }
         } else {
             panic!("not an instructor in this org");
         }
@@ -1663,13 +1548,9 @@ pub mod AttenSysOrg {
     fn get_all_registration_request(self: @ContractState, org_: ContractAddress) -> Array<Student> {
         let mut arr_of_request = array![];
 
-        for i in 0
-            ..self
-                .org_to_requests
-                .entry(org_)
-                .len() {
-                    arr_of_request.append(self.org_to_requests.entry(org_).at(i).read());
-                };
+        for i in 0..self.org_to_requests.entry(org_).len() {
+            arr_of_request.append(self.org_to_requests.entry(org_).at(i).read());
+        }
 
         arr_of_request
     }

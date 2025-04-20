@@ -1,40 +1,33 @@
-use starknet::{ContractAddress, contract_address_const, ClassHash};
-// get_caller_address,
-use snforge_std::{
-    declare, ContractClassTrait, start_cheat_caller_address, start_cheat_block_timestamp_global,
-    spy_events, EventSpyAssertionsTrait, test_address, stop_cheat_caller_address,DeclareResultTrait
-};
-
-
 // use attendsys::AttenSys::IAttenSysSafeDispatcher;
 // use attendsys::AttenSys::IAttenSysSafeDispatcherTrait;
-use attendsys::contracts::AttenSysCourse::AttenSysCourse;
-use attendsys::contracts::AttenSysCourse::IAttenSysCourseDispatcher;
-use attendsys::contracts::AttenSysCourse::IAttenSysCourseDispatcherTrait;
-
-use attendsys::contracts::AttenSysEvent::IAttenSysEventDispatcher;
-use attendsys::contracts::AttenSysEvent::IAttenSysEventDispatcherTrait;
-
-use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcher;
-use attendsys::contracts::AttenSysOrg::IAttenSysOrgDispatcherTrait;
-
-use attendsys::contracts::AttenSysOrg::AttenSysOrg::{Event};
-use attendsys::contracts::AttenSysOrg::AttenSysOrg::{
-    OrganizationProfile, InstructorAddedToOrg, InstructorRemovedFromOrg, BootCampCreated,
-    ActiveMeetLinkAdded, BootcampRegistration, RegistrationApproved, RegistrationDeclined,
-    OrganizationSuspended, BootCampSuspended,
+use attendsys::contracts::AttenSysCourse::{
+    AttenSysCourse, IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
+use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::AttenSysOrg::AttenSysOrg::{
+    ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, Event,
+    InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile, OrganizationSuspended,
+    RegistrationApproved, RegistrationDeclined,
+};
+use attendsys::contracts::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
 // use attendsys::contracts::AttenSysSponsor:: { AttenSysSponsor, IAttenSysSponsorDispatcher };
 // use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
 // use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;
 // use attendsys::contracts::AttenSysSponsor::IERC20DispatcherTrait;
 use attendsys::contracts::AttenSysSponsor::AttenSysSponsor;
-use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcher;
-use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
-use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;
-use attendsys::contracts::AttenSysSponsor::IERC20DispatcherTrait;
+use attendsys::contracts::AttenSysSponsor::{
+    IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait, IERC20Dispatcher,
+    IERC20DispatcherTrait,
+};
 use attendsys::contracts::mock::ERC20;
 use openzeppelin::token::erc20::interface::{ERC20ABIDispatcher, ERC20ABIDispatcherTrait};
+// get_caller_address,
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, EventSpyAssertionsTrait, declare, spy_events,
+    start_cheat_block_timestamp_global, start_cheat_caller_address, stop_cheat_caller_address,
+    test_address,
+};
+use starknet::{ClassHash, ContractAddress, contract_address_const};
 
 #[starknet::interface]
 pub trait IERC721<TContractState> {
@@ -158,13 +151,15 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     symbol.serialize(ref constructor_calldata);
 
     let contract = declare(name).unwrap().contract_class();
-    let (contract_address, _) = ContractClassTrait::deploy(contract,@constructor_calldata).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constructor_calldata)
+        .unwrap();
 
     (contract_address, *contract.class_hash)
 }
 
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_create_course() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);
@@ -193,6 +188,7 @@ fn test_create_course() {
             nft_name_a.clone(),
             nft_symb_a.clone(),
             token_uri_a_1,
+            0
         );
     spy
         .assert_emitted(
@@ -221,9 +217,10 @@ fn test_create_course() {
             nft_name_b.clone(),
             nft_symb_b.clone(),
             token_uri_b_2.clone(),
+            0
         );
     dispatcher
-        .create_course(owner_address, true, token_uri_b, nft_name_b, nft_symb_b, token_uri_b_2);
+        .create_course(owner_address, true, token_uri_b, nft_name_b, nft_symb_b, token_uri_b_2, 0);
 
     let token_uri: ByteArray = "https://dummy_uri.com/your_idS";
     let token_uri_11: ByteArray = "https://dummy_uri.com/your_idS";
@@ -231,7 +228,7 @@ fn test_create_course() {
     let nft_symb = "CAO";
     //call again
     start_cheat_caller_address(contract_address, owner_address_two);
-    dispatcher.create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_11);
+    dispatcher.create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_11, 0);
     let creator_courses = dispatcher.get_all_creator_courses(owner_address);
     let creator_courses_two = dispatcher.get_all_creator_courses(owner_address_two);
     let creator_info = dispatcher.get_creator_info(owner_address);
@@ -248,6 +245,7 @@ fn test_create_course() {
 }
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_finish_course_n_claim() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);
@@ -271,9 +269,9 @@ fn test_finish_course_n_claim() {
     let nft_symb_a = "CAO";
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher
-        .create_course(owner_address, true, token_uri_a, nft_name_a, nft_symb_a, token_uri_a_1);
+        .create_course(owner_address, true, token_uri_a, nft_name_a, nft_symb_a, token_uri_a_1, 0);
     dispatcher
-        .create_course(owner_address, true, token_uri_b, nft_name_b, nft_symb_b, token_uri_b_2);
+        .create_course(owner_address, true, token_uri_b, nft_name_b, nft_symb_b, token_uri_b_2, 0);
 
     let token_uri: ByteArray = "https://dummy_uri.com/your_idS";
     let token_uri_2: ByteArray = "https://dummy_uri.com/your_idS";
@@ -281,7 +279,7 @@ fn test_finish_course_n_claim() {
     let nft_symb = "CAO";
     //call again
     start_cheat_caller_address(contract_address, owner_address_two);
-    dispatcher.create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_2);
+    dispatcher.create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_2, 0);
 
     start_cheat_caller_address(contract_address, viewer1_address);
     dispatcher.finish_course_claim_certification(1);
@@ -324,6 +322,7 @@ fn test_finish_course_n_claim() {
 }
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_add_replace_course_content() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let contract_address = deploy_contract("AttenSysCourse", hash);
@@ -338,7 +337,7 @@ fn test_add_replace_course_content() {
     let nft_symb_a = "CAO";
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher
-        .create_course(owner_address, true, token_uri_a, nft_name_a, nft_symb_a, token_uri_a_1);
+        .create_course(owner_address, true, token_uri_a, nft_name_a, nft_symb_a, token_uri_a_1, 0);
 
     dispatcher.add_replace_course_content(1, owner_address, "123");
     spy
@@ -372,6 +371,7 @@ fn test_add_replace_course_content() {
 }
 
 #[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_create_event() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     // mock event with test addresses
@@ -401,7 +401,7 @@ fn test_create_event() {
             32989989,
             1,
             event_uri.clone(),
-            0
+            0,
         );
     let event_details_check = dispatcher.get_event_details(1);
     //println!("Event URI: {:?}", event_details_check.event_uri);
@@ -432,7 +432,7 @@ fn test_create_event() {
             32989989,
             1,
             event_uri_two.clone(),
-            0
+            0,
         );
 
     let event_details_check_two = dispatcher.get_event_details(2);
@@ -499,7 +499,7 @@ fn test_reg_nd_mark() {
             329,
             1,
             event_uri,
-            0
+            0,
         );
 
     start_cheat_block_timestamp_global(55555);
@@ -640,7 +640,7 @@ fn test_add_instructor_to_org() {
                     contract_address,
                     Event::InstructorAddedToOrg(
                         InstructorAddedToOrg {
-                            org_name: org_name_copy, instructor: arr_of_instructors_copy,
+                            org_name: org_name_copy, org_address: owner_address, instructor: arr_of_instructors_copy,
                         },
                     ),
                 ),
@@ -770,6 +770,7 @@ fn test_create_bootcamp_for_org() {
                     Event::BootCampCreated(
                         BootCampCreated {
                             org_name: org_name_cp,
+                            org_address: owner_address,
                             bootcamp_name: bootcamp_name_cp,
                             nft_name: token_uri_cp,
                             nft_symbol: nft_name_cp,
@@ -1058,7 +1059,7 @@ fn test_decline_registration() {
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
     let contract_address = deploy_organization_contract(
-        "AttenSysOrg", hash, token_addr, sponsor_contract_addr
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
     );
     let mut spy = spy_events();
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
@@ -1085,7 +1086,7 @@ fn test_decline_registration() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1108,10 +1109,12 @@ fn test_decline_registration() {
                 (
                     contract_address,
                     Event::RegistrationDeclined(
-                        RegistrationDeclined { student_address: student_address_cp, bootcamp_id: 0 }
-                    )
-                )
-            ]
+                        RegistrationDeclined {
+                            student_address: student_address_cp, bootcamp_id: 0,
+                        },
+                    ),
+                ),
+            ],
         );
 }
 
@@ -1188,7 +1191,8 @@ fn test_sponsor_organization() {
     // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
 
-    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class,@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class, @constructor_args)
+        .unwrap();
 
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -1203,7 +1207,10 @@ fn test_sponsor_organization() {
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
 
-    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class,@constructor_args).unwrap();
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(
+        sponsor_contract_class, @constructor_args,
+    )
+        .unwrap();
 
     let amount: u256 = 1000_u256;
     let uri: ByteArray = "ipfs://sponsorship-proof";
@@ -1227,8 +1234,6 @@ fn test_sponsor_organization() {
 
     let allowance = token_dispatcher.allowance(sponsor_address, sponsor_contract_address);
     let sponsor_bal = token_dispatcher.balance_of(sponsor_address);
-    println!("Allowance: {}", allowance);
-    println!("Sponsor balance: {}", sponsor_bal);
 
     // Sponsor the organization
     let org = dispatcher.get_org_info(owner_address);
@@ -1259,7 +1264,8 @@ fn test_withdraw_sponsorship_fund() {
     // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
 
-    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class,@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class, @constructor_args)
+        .unwrap();
 
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -1274,7 +1280,10 @@ fn test_withdraw_sponsorship_fund() {
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
 
-    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class, @constructor_args).unwrap();
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(
+        sponsor_contract_class, @constructor_args,
+    )
+        .unwrap();
 
     let amount: u256 = 1000_u256;
     let uri: ByteArray = "ipfs://sponsorship-proof";
@@ -1340,7 +1349,8 @@ fn test_withdraw_sponsorship_fund_unauthorized_caller_should_panic() {
     // initial_supply.serialize(ref constructor_args);
     sponsor_address.serialize(ref constructor_args);
 
-    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class,@constructor_args).unwrap();
+    let (token_contract_address, _) = ContractClassTrait::deploy(contract_class, @constructor_args)
+        .unwrap();
 
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -1355,7 +1365,10 @@ fn test_withdraw_sponsorship_fund_unauthorized_caller_should_panic() {
     org_contract_address.serialize(ref constructor_args);
     event_contract_address.serialize(ref constructor_args);
 
-    let (sponsor_contract_address, _) = ContractClassTrait::deploy(sponsor_contract_class, @constructor_args).unwrap();
+    let (sponsor_contract_address, _) = ContractClassTrait::deploy(
+        sponsor_contract_class, @constructor_args,
+    )
+        .unwrap();
 
     let amount: u256 = 1000_u256;
     let uri: ByteArray = "ipfs://sponsorship-proof";

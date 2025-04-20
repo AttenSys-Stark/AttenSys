@@ -1,10 +1,9 @@
-use starknet::{ContractAddress, contract_address_const, ClassHash};
-use snforge_std::{
-    declare, ContractClassTrait, start_cheat_caller_address, stop_cheat_caller_address,
-    test_address,DeclareResultTrait
-};
-
 use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use snforge_std::{
+    ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
+    stop_cheat_caller_address, test_address,
+};
+use starknet::{ClassHash, ContractAddress, contract_address_const};
 
 fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
     let contract = declare(name).unwrap().contract_class();
@@ -14,7 +13,7 @@ fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
     contract_owner_address.serialize(ref constuctor_arg);
     hash.serialize(ref constuctor_arg);
 
-    let (contract_address, _) = ContractClassTrait::deploy(contract,@constuctor_arg).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constuctor_arg).unwrap();
 
     contract_address
 }
@@ -31,7 +30,8 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     symbol.serialize(ref constructor_calldata);
 
     let contract = declare(name).unwrap().contract_class();
-    let (contract_address, _) = ContractClassTrait::deploy(contract,@constructor_calldata).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constructor_calldata)
+        .unwrap();
 
     (contract_address, *contract.class_hash)
 }
@@ -52,7 +52,7 @@ fn deploy_event_contract(
     _token_address.serialize(ref constuctor_arg);
     sponsor_contract_address.serialize(ref constuctor_arg);
 
-    let (contract_address, _) = ContractClassTrait::deploy(contract,@constuctor_arg).unwrap();
+    let (contract_address, _) = ContractClassTrait::deploy(contract, @constuctor_arg).unwrap();
 
     contract_address
 }
@@ -165,7 +165,7 @@ fn test_toggle_event_status() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     // mock event with test addresses
     let contract_address = deploy_event_contract(
-        "AttenSysEvent", hash, test_address(), test_address()
+        "AttenSysEvent", hash, test_address(), test_address(),
     );
 
     let admin: ContractAddress = contract_address_const::<'admin'>();
@@ -186,7 +186,7 @@ fn test_toggle_event_status() {
             2000,
             1,
             "https://dummy_event_uri.com/your_id",
-            0
+            0,
         );
 
     let event_details = attensys_event_contract.get_event_details(1);
@@ -212,7 +212,7 @@ fn test_toggle_event_should_panic_for_wrong_admin() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     // mock event with test addresses
     let contract_address = deploy_event_contract(
-        "AttenSysEvent", hash, test_address(), test_address()
+        "AttenSysEvent", hash, test_address(), test_address(),
     );
 
     let other_admin: ContractAddress = contract_address_const::<'other_admin'>();
@@ -231,7 +231,7 @@ fn test_toggle_event_should_panic_for_wrong_admin() {
             2000,
             1,
             "https://dummy_event_uri.com/your_id",
-            0
+            0,
         );
 
     let event_details = attensys_event_contract.get_event_details(1);
