@@ -52,6 +52,7 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_total_course_completions(self: @TContractState, course_identifier: u256) -> u256;
     fn ensure_admin(self: @TContractState);
     fn get_suspension_status(self: @TContractState, course_identifier: u256) -> bool;
+    fn get_course_approval_status(self: @TContractState, course_identifier: u256) -> bool;
     fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
     fn get_price_of_strk_usd(self: @TContractState) -> u128;
@@ -130,7 +131,7 @@ pub mod AttenSysCourse {
         pub name_: ByteArray,
         pub symbol: ByteArray,
         pub course_ipfs_uri: ByteArray,
-        pub isApproved: bool,
+        pub is_approved: bool,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -245,7 +246,7 @@ pub mod AttenSysCourse {
         pub course_ipfs_uri: ByteArray,
         pub is_suspended: bool,
         pub price: u128,
-        pub isApproved: bool,
+        pub is_approved: bool,
     }
 
     #[derive(Drop, Copy, Serde, starknet::Store)]
@@ -294,7 +295,7 @@ pub mod AttenSysCourse {
                 course_ipfs_uri: course_ipfs_uri.clone(),
                 is_suspended: false,
                 price: self.get_strk_of_usd(price),
-                isApproved: false,
+                is_approved: false,
             };
 
             self
@@ -309,7 +310,7 @@ pub mod AttenSysCourse {
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
                         price: self.get_strk_of_usd(price),
-                        isApproved: false,
+                        is_approved: false,
                     },
                 );
 
@@ -326,7 +327,7 @@ pub mod AttenSysCourse {
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
                         price: self.get_strk_of_usd(price),
-                        isApproved: false,
+                        is_approved: false,
                     },
                 );
             self.course_creator_info.entry(owner_).write(current_creator_info);
@@ -367,7 +368,7 @@ pub mod AttenSysCourse {
                         name_: name_,
                         symbol: symbol,
                         course_ipfs_uri: course_ipfs_uri,
-                        isApproved: false,
+                        is_approved: false,
                     },
                 );
             (deployed_contract_address, current_identifier)
@@ -416,7 +417,7 @@ pub mod AttenSysCourse {
                 course_ipfs_uri: "",
                 is_suspended: false,
                 price: 0,
-                isApproved: false,
+                is_approved: false,
             };
             //Update with default parameters
             self
@@ -712,6 +713,10 @@ pub mod AttenSysCourse {
             self.specific_course_info_with_identifer.entry(course_identifier).is_suspended.read()
         }
 
+        fn get_course_approval_status(self: @ContractState, course_identifier: u256) -> bool {
+            self.specific_course_info_with_identifer.entry(course_identifier).is_approved.read()
+        }
+
         fn toggle_suspension(ref self: ContractState, course_identifier: u256, suspend: bool) {
             self.ensure_admin();
 
@@ -766,16 +771,16 @@ pub mod AttenSysCourse {
 
             let mut course = self.specific_course_info_with_identifer.entry(course_identifier).read();
 
-            if course.isApproved != approve {
+            if course.is_approved != approve {
                 let owner = course.owner;
-                course.isApproved = approve;
+                course.is_approved = approve;
                 self.specific_course_info_with_identifer.entry(course_identifier).write(course.clone());
 
                 // Update in all_course_info
                 for i in 0..self.all_course_info.len() {
                     let mut course_info = self.all_course_info.at(i).read();
                     if course_info.course_identifier == course_identifier {
-                        course_info.isApproved = approve;
+                        course_info.is_approved = approve;
                         self.all_course_info.at(i).write(course_info.clone());
                     }
                 }
@@ -789,7 +794,7 @@ pub mod AttenSysCourse {
                     }
                     let mut content = self.creator_to_all_content.entry(owner).at(i).read();
                     if content.course_identifier == course_identifier {
-                        content.isApproved = approve;
+                        content.is_approved = approve;
                         self.creator_to_all_content.entry(owner).at(i).write(content.clone());
                     }
                     i += 1;
