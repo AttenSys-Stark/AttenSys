@@ -123,6 +123,7 @@ fn test_pricefeed_work_with_course_creation() {
     assert(courses.len() == 1, 'Course should be created');
     assert(courses[0].price == @(attensys_course_contract.get_strk_of_usd(price)), 'Price should match oracle value');
 
+
     // create a course with price 0 USD
     let price_2: u128 = 0; //0 USD
     start_cheat_caller_address(course_contract, owner_two);
