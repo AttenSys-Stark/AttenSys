@@ -204,6 +204,7 @@ fn test_create_course() {
                             name_: nft_name_a,
                             symbol: nft_symb_a,
                             course_ipfs_uri: token_uri_a.clone(),
+                            isApproved: false,
                         },
                     ),
                 ),
