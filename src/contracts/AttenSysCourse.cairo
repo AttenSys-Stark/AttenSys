@@ -100,7 +100,7 @@ pub mod AttenSysCourse {
     const PRAGMA_ORACLE_ADDRESS: felt252 =
         0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a;
     const KEY: felt252 = 6004514686061859652; // STRK/USD 
-    const ORACLE_PRECISION: u128 = 100_000_000; 
+    const ORACLE_PRECISION: u128 = 100_000_000;
 
     #[event]
     #[derive(starknet::Event, Debug, Drop)]
@@ -769,12 +769,18 @@ pub mod AttenSysCourse {
         fn toggle_course_approval(ref self: ContractState, course_identifier: u256, approve: bool) {
             self.ensure_admin();
 
-            let mut course = self.specific_course_info_with_identifer.entry(course_identifier).read();
+            let mut course = self
+                .specific_course_info_with_identifer
+                .entry(course_identifier)
+                .read();
 
             if course.is_approved != approve {
                 let owner = course.owner;
                 course.is_approved = approve;
-                self.specific_course_info_with_identifer.entry(course_identifier).write(course.clone());
+                self
+                    .specific_course_info_with_identifer
+                    .entry(course_identifier)
+                    .write(course.clone());
 
                 // Update in all_course_info
                 for i in 0..self.all_course_info.len() {
@@ -827,7 +833,8 @@ pub mod AttenSysCourse {
 
 
         fn calculate_course_price_in_strk(self: @ContractState, usd_price: u128) -> u128 {
-            let strk_price = self.internal_get_price_of_strk_usd(); // returns 13572066 for $0.13572066
+            let strk_price = self
+                .internal_get_price_of_strk_usd(); // returns 13572066 for $0.13572066
 
             // If we want 25 USD worth of STRK:
             // 25 * 10^8 / 13572066 = number of STRK needed
