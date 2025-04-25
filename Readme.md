@@ -4,9 +4,9 @@ Follow the steps below to set up your local development environment, deploy cont
 ## Prerequisites
 Ensure you have the following installed:
 
-- Node.js: Version v18.17.0
+- Node.js: Version v22.14.0
 - Starknet Devnet: Version 0.2.0
-- Snforge: Version 0.27.0
+- Snforge: Version 0.41.0
 
 ## Installation
 First, install the necessary dependencies by running:
