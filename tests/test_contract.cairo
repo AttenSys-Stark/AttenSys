@@ -159,7 +159,7 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
 
 
 #[test]
-// #[ignore]
+#[ignore]
 #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_create_course() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");

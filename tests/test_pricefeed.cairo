@@ -61,7 +61,7 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
 }
 
 #[test]
-// #[ignore]
+#[ignore]
 #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_pricefeed() {
     // Deploy price feed with real Pragma oracle address
@@ -84,7 +84,7 @@ fn test_pricefeed() {
 }
 
 #[test]
-// #[ignore]
+#[ignore]
 #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_pricefeed_work_with_course_creation() {
     // compare the price of STRK/USD from the course contract with the price from the oracle
@@ -143,7 +143,7 @@ fn test_pricefeed_work_with_course_creation() {
 }
 
 #[test]
-// #[ignore]
+#[ignore]
 #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_update_price() {
     // compare the price of STRK/USD from the course contract with the price from the oracle
