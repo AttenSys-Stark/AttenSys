@@ -12,7 +12,7 @@ pub trait IAttenSysCourse<TContractState> {
         name_: ByteArray,
         symbol: ByteArray,
         course_ipfs_uri: ByteArray,
-        price: u128,
+        price_: u128,
     ) -> (ContractAddress, u256);
     fn add_replace_course_content(
         ref self: TContractState,
@@ -59,6 +59,11 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_strk_of_usd(self: @TContractState, usd_price: u128) -> u128;
     fn update_price(ref self: TContractState, course_identifier: u256, new_price: u128);
     fn toggle_course_approval(ref self: TContractState, course_identifier: u256, approve: bool);
+    fn creator_withdraw(ref self: TContractState, amount: u256);
+    fn init_fee_percent(ref self: TContractState, fee: u256);
+    fn admin_withdrawables(ref self: TContractState, amount: u256);
+    fn get_creator_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u256;
+    fn get_fee_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u256;
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -69,6 +74,21 @@ pub trait IAttenSysNft<TContractState> {
     fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u256);
 }
 
+#[starknet::interface]
+pub trait IERC20<TContractState> {
+    fn name(self: @TContractState) -> felt252;
+    fn symbol(self: @TContractState) -> felt252;
+    fn decimals(self: @TContractState) -> u8;
+    fn total_supply(self: @TContractState) -> u256;
+    fn balanceOf(self: @TContractState, account: ContractAddress) -> u256;
+    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
+    fn transferFrom(
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256,
+    ) -> bool;
+    fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
+}
+
 #[starknet::contract]
 pub mod AttenSysCourse {
     use core::starknet::storage::{
@@ -76,13 +96,15 @@ pub mod AttenSysCourse {
         Vec, VecTrait,
     };
     use core::starknet::syscalls::deploy_syscall;
-    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address};
+    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address, get_contract_address};
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
     use pragma_lib::abi::{IPragmaABIDispatcher, IPragmaABIDispatcherTrait};
     use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
     use super::IAttenSysNftDispatcherTrait;
+    use attendsys::contracts::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
+    
 
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -101,6 +123,8 @@ pub mod AttenSysCourse {
         0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a;
     const KEY: felt252 = 6004514686061859652; // STRK/USD 
     const ORACLE_PRECISION: u128 = 100_000_000;
+
+    const STRK_CONTRACT_ADDRESS: felt252 = 0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
 
     #[event]
     #[derive(starknet::Event, Debug, Drop)]
@@ -226,6 +250,15 @@ pub mod AttenSysCourse {
         ownable: OwnableComponent::Storage,
         #[substorage(v0)]
         upgradeable: UpgradeableComponent::Storage,
+        //amount withdrawable
+        withdrawable_amount: Map<ContractAddress, u256>,
+        //fee value
+        fee_value: u256,
+        //withdrawable fee
+        fee_withdrawable: u256,
+        // total course sales 
+        total_course_sales: Map<ContractAddress, u256>,
+
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -272,7 +305,7 @@ pub mod AttenSysCourse {
             name_: ByteArray,
             symbol: ByteArray,
             course_ipfs_uri: ByteArray,
-            price: u128,
+            price_: u128,
         ) -> (ContractAddress, u256) {
             //make an address zero check
             let identifier_count = self.identifier_tracker.read();
@@ -286,7 +319,7 @@ pub mod AttenSysCourse {
                 current_creator_info.number_of_courses += 1;
                 current_creator_info.creator_status = true;
             }
-
+ 
             let mut course_call_data: Course = Course {
                 owner: owner_,
                 course_identifier: current_identifier,
@@ -294,7 +327,7 @@ pub mod AttenSysCourse {
                 uri: base_uri.clone(),
                 course_ipfs_uri: course_ipfs_uri.clone(),
                 is_suspended: false,
-                price: self.get_strk_of_usd(price),
+                price: price_,
                 is_approved: false,
             };
 
@@ -309,7 +342,7 @@ pub mod AttenSysCourse {
                         uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
-                        price: self.get_strk_of_usd(price),
+                        price: price_,
                         is_approved: false,
                     },
                 );
@@ -326,7 +359,7 @@ pub mod AttenSysCourse {
                         uri: base_uri.clone(),
                         course_ipfs_uri: course_ipfs_uri.clone(),
                         is_suspended: false,
-                        price: self.get_strk_of_usd(price),
+                        price: price_,
                         is_approved: false,
                     },
                 );
@@ -380,13 +413,29 @@ pub mod AttenSysCourse {
                 !self.user_to_course_status.entry((caller, course_identifier)).read(),
                 'already acquired',
             );
+            let amount_usd = self
+                .specific_course_info_with_identifer
+                .entry(course_identifier)
+                .price.read();
+
+            let amount_in_strk = self.calculate_course_price_in_strk(amount_usd);
+            
+            let erc20_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),};
+            erc20_dispatcher.transferFrom(get_caller_address(), get_contract_address(), amount_in_strk.into());
+
             self.user_to_course_status.entry((caller, course_identifier)).write(true);
             let derived_course = self
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .read();
             let course_owner = derived_course.owner;
+            self.withdrawable_amount
+                .entry(course_owner)
+                .write(self.withdrawable_amount.entry(course_owner).read() + amount_in_strk.into());
             self.user_courses.entry(caller).append().write(derived_course);
+            self.total_course_sales.entry(course_owner).write(
+                self.total_course_sales.entry(course_owner).read() + 1,
+            );
             self.emit(AcquiredCourse { course_identifier, owner: course_owner, candidate: caller });
         }
 
@@ -555,12 +604,18 @@ pub mod AttenSysCourse {
                 );
         }
 
+  
         fn finish_course_claim_certification(ref self: ContractState, course_identifier: u256) {
             //only check for accessment score. that is if there's assesment
             //todo : verifier check, get a value from frontend, confirm the hash if it matches with
             //what is being saved. goal is to avoid fraudulent course claim.
             //todo issue certification. (whitelist address)
             let is_suspended = self.get_suspension_status(course_identifier);
+            let taken_status = self
+                .user_to_course_status
+                .entry((get_caller_address(), course_identifier))
+                .read();
+            assert(taken_status == true, 'not taken course');
             assert(is_suspended == false, 'Already suspended');
             assert(
                 !self.is_course_certified.entry((get_caller_address(), course_identifier)).read(),
@@ -761,7 +816,7 @@ pub mod AttenSysCourse {
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .read();
-            course.price = self.get_strk_of_usd(new_price);
+            course.price = new_price;
             self.specific_course_info_with_identifer.entry(course_identifier).write(course);
             self.emit(CoursePriceUpdated { course_identifier, new_price });
         }
@@ -813,6 +868,50 @@ pub mod AttenSysCourse {
                 }
             }
         }
+        
+        fn creator_withdraw(ref self: ContractState, amount: u256){
+            let caller = get_caller_address();
+            let token_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
+            let contract_token_balance = token_dispatcher.balanceOf(get_contract_address());
+            assert(self.withdrawable_amount.entry(caller).read() > 0, 'not admin');
+            assert(amount <= contract_token_balance, 'Not enough balance');
+            let creator_balance = self.withdrawable_amount.entry(caller).read();
+            assert(amount <= creator_balance, 'Not enough balance');
+            let fee = amount * self.fee_value.read() / 100;
+            let withdrawable_less_fee = amount - fee;
+            self.fee_withdrawable.write(self.fee_withdrawable.read() + fee);
+            let has_transferred = token_dispatcher.transfer(recipient: caller, amount: withdrawable_less_fee);
+            if has_transferred {
+                self.withdrawable_amount.entry(caller).write(self.withdrawable_amount.entry(caller).read() - amount);
+            }            
+        }
+        
+        fn init_fee_percent(ref self: ContractState, fee: u256){
+            assert(fee > 0, 'fee cannot be zero');
+            assert(fee <= 100, 'fee cannot be > 100');
+            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+            self.fee_value.write(fee);
+        }
+        
+        fn admin_withdrawables(ref self: ContractState, amount: u256){
+           let fee = self.fee_value.read();
+            assert(fee > 0, 'fee cannot be zero');
+            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+            assert(amount <= fee, 'Not enough balance');
+            let token_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
+            let has_transferred = token_dispatcher.transfer(recipient: get_caller_address(), amount: amount);
+            if has_transferred {
+                self.fee_withdrawable.write(self.fee_withdrawable.read() - amount);
+            }
+        }
+        fn get_creator_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u256{
+            self.withdrawable_amount.entry(user).read()
+        }
+        fn get_fee_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u256{
+            self.fee_withdrawable.read()
+        }
+
+
     }
 
     #[generate_trait]
