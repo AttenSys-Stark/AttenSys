@@ -297,7 +297,6 @@ fn test_course_purchase() {
 
 
 #[test]
-#[ignore]
 #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_purchase_course_completions_n_withdrawals() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -320,8 +319,9 @@ fn test_purchase_course_completions_n_withdrawals() {
 
     const STRK_CONTRACT_ADDRESS: felt252 = 0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
 
-    start_cheat_caller_address(contract_address, owner.try_into().unwrap());
-    attensys_course_contract.create_course(owner.try_into().unwrap(), true, base_uri, name, symbol, base_uri_2, 10);
+    let course_creator_address: ContractAddress = contract_address_const::<'course_creator'>();
+    start_cheat_caller_address(contract_address, course_creator_address);
+    attensys_course_contract.create_course(course_creator_address, true, base_uri, name, symbol, base_uri_2, 10);
 
     let initial_count = attensys_course_contract.get_total_course_completions(1);
     assert(initial_count == 0, 'initial count should be 0');
@@ -375,16 +375,25 @@ fn test_purchase_course_completions_n_withdrawals() {
 
     stop_cheat_caller_address(contract_address);
     //testing creator withdraw
-    start_cheat_caller_address(contract_address, owner.try_into().unwrap());
-    attensys_course_contract.creator_withdraw(20);
+    start_cheat_caller_address(contract_address, course_creator_address);
+    let balance_before_creator_withdrawal = token_dispatcher.balance_of(course_creator_address);
+    println!("contract balance before creator withdrawing: {}", balance_before_creator_withdrawal);
+
+    attensys_course_contract.creator_withdraw(new_balance_second);
     let balance_after_creator_withdrawal = token_dispatcher.balance_of(contract_address);
-    println!("contract balance after creator withdrawing 20 strk minus 2 strk fee: {}", balance_after_creator_withdrawal);
+    // println!("contract balance after creator withdrawing 20 strk minus 2 strk fee: {}", balance_after_creator_withdrawal);
+    println!("contract balance after creator withdrawing all strk minus fee: {}", balance_after_creator_withdrawal);
     stop_cheat_caller_address(contract_address);
 
-    start_cheat_caller_address(contract_address, contract_owner_address.try_into().unwrap());
-    attensys_course_contract.admin_withdrawables(1);
+    start_cheat_caller_address(contract_address, contract_owner_address.try_into().unwrap()); 
+    let balance_before_admin_start_withdrawal = token_dispatcher.balance_of(contract_address); 
+    println!("contract balance before admin withdrawing all generated in fee: {}", balance_before_admin_start_withdrawal);
+    attensys_course_contract.admin_withdrawables(13);    
     let balance_after_admin_withdrawal = token_dispatcher.balance_of(contract_address);
-    println!("contract balance after admin withdrawing 1 strk out of 2 strk generated in fee: {}", balance_after_admin_withdrawal);
+    let balance_after_creator_withdrawal = token_dispatcher.balance_of(course_creator_address);
+    println!("contract balance after admin withdrawing all generated in fee: {}", balance_after_admin_withdrawal);
+    println!("contract balance after creator withdrawing all: {}", balance_after_creator_withdrawal);
+    
     stop_cheat_caller_address(contract_address);
 
 }

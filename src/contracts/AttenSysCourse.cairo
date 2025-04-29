@@ -894,10 +894,9 @@ pub mod AttenSysCourse {
         }
         
         fn admin_withdrawables(ref self: ContractState, amount: u256){
-           let fee = self.fee_value.read();
-            assert(fee > 0, 'fee cannot be zero');
+            assert(amount > 0, 'amount cannot be zero');
+            assert(amount <= self.fee_withdrawable.read(), 'Not enough balance');
             assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
-            assert(amount <= fee, 'Not enough balance');
             let token_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
             let has_transferred = token_dispatcher.transfer(recipient: get_caller_address(), amount: amount);
             if has_transferred {
