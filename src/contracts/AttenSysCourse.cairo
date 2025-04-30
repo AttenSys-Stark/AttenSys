@@ -13,57 +13,57 @@ pub trait IAttenSysCourse<TContractState> {
         symbol: ByteArray,
         course_ipfs_uri: ByteArray,
         price_: u128,
-    ) -> (ContractAddress, u256);
+    ) -> (ContractAddress, u128);
     fn add_replace_course_content(
         ref self: TContractState,
-        course_identifier: u256,
+        course_identifier: u128,
         owner_: ContractAddress,
         new_course_uri: ByteArray,
     );
-    fn acquire_a_course(ref self: TContractState, course_identifier: u256);
+    fn acquire_a_course(ref self: TContractState, course_identifier: u128);
     //untested
-    fn finish_course_claim_certification(ref self: TContractState, course_identifier: u256);
+    fn finish_course_claim_certification(ref self: TContractState, course_identifier: u128);
     //untested
     fn check_course_completion_status_n_certification(
-        self: @TContractState, course_identifier: u256, candidate: ContractAddress,
+        self: @TContractState, course_identifier: u128, candidate: ContractAddress,
     ) -> bool;
-    fn remove_course(ref self: TContractState, course_identifier: u256);
+    fn remove_course(ref self: TContractState, course_identifier: u128);
     fn get_course_infos(
-        self: @TContractState, course_identifiers: Array<u256>,
+        self: @TContractState, course_identifiers: Array<u128>,
     ) -> Array<AttenSysCourse::Course>;
-    fn is_user_taking_course(self: @TContractState, user: ContractAddress, course_id: u256) -> bool;
+    fn is_user_taking_course(self: @TContractState, user: ContractAddress, course_id: u128) -> bool;
     fn is_user_certified_for_course(
-        self: @TContractState, user: ContractAddress, course_id: u256,
+        self: @TContractState, user: ContractAddress, course_id: u128,
     ) -> bool;
     fn get_all_taken_courses(
         self: @TContractState, user: ContractAddress,
     ) -> Array<AttenSysCourse::Course>;
-    fn get_user_completed_courses(self: @TContractState, user: ContractAddress) -> Array<u256>;
+    fn get_user_completed_courses(self: @TContractState, user: ContractAddress) -> Array<u128>;
     fn get_all_courses_info(self: @TContractState) -> Array<AttenSysCourse::Course>;
     fn get_all_creator_courses(
         self: @TContractState, owner_: ContractAddress,
     ) -> Array<AttenSysCourse::Course>;
     fn get_creator_info(self: @TContractState, creator: ContractAddress) -> AttenSysCourse::Creator;
-    fn get_course_nft_contract(self: @TContractState, course_identifier: u256) -> ContractAddress;
+    fn get_course_nft_contract(self: @TContractState, course_identifier: u128) -> ContractAddress;
     fn transfer_admin(ref self: TContractState, new_admin: ContractAddress);
     fn claim_admin_ownership(ref self: TContractState);
     fn get_admin(self: @TContractState) -> ContractAddress;
     fn get_new_admin(self: @TContractState) -> ContractAddress;
-    fn get_total_course_completions(self: @TContractState, course_identifier: u256) -> u256;
+    fn get_total_course_completions(self: @TContractState, course_identifier: u128) -> u128;
     fn ensure_admin(self: @TContractState);
-    fn get_suspension_status(self: @TContractState, course_identifier: u256) -> bool;
-    fn get_course_approval_status(self: @TContractState, course_identifier: u256) -> bool;
-    fn toggle_suspension(ref self: TContractState, course_identifier: u256, suspend: bool);
+    fn get_suspension_status(self: @TContractState, course_identifier: u128) -> bool;
+    fn get_course_approval_status(self: @TContractState, course_identifier: u128) -> bool;
+    fn toggle_suspension(ref self: TContractState, course_identifier: u128, suspend: bool);
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
     fn get_price_of_strk_usd(self: @TContractState) -> u128;
     fn get_strk_of_usd(self: @TContractState, usd_price: u128) -> u128;
-    fn update_price(ref self: TContractState, course_identifier: u256, new_price: u128);
-    fn toggle_course_approval(ref self: TContractState, course_identifier: u256, approve: bool);
-    fn creator_withdraw(ref self: TContractState, amount: u256);
-    fn init_fee_percent(ref self: TContractState, fee: u256);
-    fn admin_withdrawables(ref self: TContractState, amount: u256);
-    fn get_creator_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u256;
-    fn get_fee_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u256;
+    fn update_price(ref self: TContractState, course_identifier: u128, new_price: u128);
+    fn toggle_course_approval(ref self: TContractState, course_identifier: u128, approve: bool);
+    fn creator_withdraw(ref self: TContractState, amount: u128);
+    fn init_fee_percent(ref self: TContractState, fee: u128);
+    fn admin_withdrawables(ref self: TContractState, amount: u128);
+    fn get_creator_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u128;
+    fn get_fee_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u128;
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -71,7 +71,7 @@ pub trait IAttenSysCourse<TContractState> {
 #[starknet::interface]
 pub trait IAttenSysNft<TContractState> {
     // NFT contract
-    fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u256);
+    fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u128);
 }
 
 #[starknet::interface]
@@ -79,14 +79,14 @@ pub trait IERC20<TContractState> {
     fn name(self: @TContractState) -> felt252;
     fn symbol(self: @TContractState) -> felt252;
     fn decimals(self: @TContractState) -> u8;
-    fn total_supply(self: @TContractState) -> u256;
-    fn balanceOf(self: @TContractState, account: ContractAddress) -> u256;
-    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u256;
-    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
+    fn total_supply(self: @TContractState) -> u128;
+    fn balanceOf(self: @TContractState, account: ContractAddress) -> u128;
+    fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u128;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u128) -> bool;
     fn transferFrom(
-        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256,
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u128,
     ) -> bool;
-    fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
+    fn approve(ref self: TContractState, spender: ContractAddress, amount: u128) -> bool;
 }
 
 #[starknet::contract]
@@ -148,7 +148,7 @@ pub mod AttenSysCourse {
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseCreated {
-        pub course_identifier: u256,
+        pub course_identifier: u128,
         pub owner_: ContractAddress,
         pub accessment_: bool,
         pub base_uri: ByteArray,
@@ -160,14 +160,14 @@ pub mod AttenSysCourse {
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseReplaced {
-        pub course_identifier: u256,
+        pub course_identifier: u128,
         pub owner_: ContractAddress,
         pub new_course_uri: ByteArray,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseCertClaimed {
-        pub course_identifier: u256,
+        pub course_identifier: u128,
         pub candidate: ContractAddress,
     }
 
@@ -178,40 +178,40 @@ pub mod AttenSysCourse {
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseSuspended {
-        course_identifier: u256,
+        course_identifier: u128,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseUnsuspended {
-        course_identifier: u256,
+        course_identifier: u128,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseRemoved {
-        course_identifier: u256,
+        course_identifier: u128,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CoursePriceUpdated {
-        course_identifier: u256,
+        course_identifier: u128,
         new_price: u128,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct AcquiredCourse {
-        course_identifier: u256,
+        course_identifier: u128,
         owner: ContractAddress,
         candidate: ContractAddress,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseApproved {
-        course_identifier: u256,
+        course_identifier: u128,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
     pub struct CourseUnapproved {
-        course_identifier: u256,
+        course_identifier: u128,
     }
 
     #[storage]
@@ -219,15 +219,15 @@ pub mod AttenSysCourse {
         //save content creator info including all all contents created.
         course_creator_info: Map<ContractAddress, Creator>,
         //saves specific course (course details only), set this when creating course
-        specific_course_info_with_identifer: Map<u256, Course>,
+        specific_course_info_with_identifer: Map<u128, Course>,
         //saves all course info
         all_course_info: Vec<Course>,
         //saves a course completion status after successfully completed a particular course
-        completion_status: Map<(ContractAddress, u256), bool>,
+        completion_status: Map<(ContractAddress, u128), bool>,
         //saves completed courses by user
-        completed_courses: Map<ContractAddress, Vec<u256>>,
+        completed_courses: Map<ContractAddress, Vec<u128>>,
         //saves identifier tracker
-        identifier_tracker: u256,
+        identifier_tracker: u128,
         //maps, creator's address to an array of struct of all courses created.
         creator_to_all_content: Map<ContractAddress, Vec<Course>>,
         //nft classhash
@@ -237,34 +237,34 @@ pub mod AttenSysCourse {
         // address of intended new admin
         intended_new_admin: ContractAddress,
         //saves nft contract address associated to event
-        course_nft_contract_address: Map<u256, ContractAddress>,
+        course_nft_contract_address: Map<u128, ContractAddress>,
         //tracks all minted nft id minted by events
-        track_minted_nft_id: Map<(u256, ContractAddress), u256>,
+        track_minted_nft_id: Map<(u128, ContractAddress), u128>,
         // user to courses
         user_courses: Map<ContractAddress, Vec<Course>>,
         // user_to_course_status to prevent more than once
-        user_to_course_status: Map<(ContractAddress, u256), bool>,
+        user_to_course_status: Map<(ContractAddress, u128), bool>,
         // user is certified on a course status
-        is_course_certified: Map<(ContractAddress, u256), bool>,
+        is_course_certified: Map<(ContractAddress, u128), bool>,
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
         #[substorage(v0)]
         upgradeable: UpgradeableComponent::Storage,
         //amount withdrawable
-        withdrawable_amount: Map<ContractAddress, u256>,
+        withdrawable_amount: Map<ContractAddress, u128>,
         //fee value
-        fee_value: u256,
+        fee_value: u128,
         //withdrawable fee
-        fee_withdrawable: u256,
+        fee_withdrawable: u128,
         // total course sales 
-        total_course_sales: Map<ContractAddress, u256>,
+        total_course_sales: Map<ContractAddress, u128>,
 
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
     pub struct Creator {
         pub address: ContractAddress,
-        pub number_of_courses: u256,
+        pub number_of_courses: u128,
         pub creator_status: bool,
     }
 
@@ -273,7 +273,7 @@ pub mod AttenSysCourse {
     #[derive(Drop, Clone, Serde, starknet::Store)]
     pub struct Course {
         pub owner: ContractAddress,
-        pub course_identifier: u256,
+        pub course_identifier: u128,
         pub accessment: bool,
         pub uri: ByteArray,
         pub course_ipfs_uri: ByteArray,
@@ -306,7 +306,7 @@ pub mod AttenSysCourse {
             symbol: ByteArray,
             course_ipfs_uri: ByteArray,
             price_: u128,
-        ) -> (ContractAddress, u256) {
+        ) -> (ContractAddress, u128) {
             //make an address zero check
             let identifier_count = self.identifier_tracker.read();
             let current_identifier = identifier_count + 1;
@@ -407,7 +407,7 @@ pub mod AttenSysCourse {
             (deployed_contract_address, current_identifier)
         }
 
-        fn acquire_a_course(ref self: ContractState, course_identifier: u256) {
+        fn acquire_a_course(ref self: ContractState, course_identifier: u128) {
             let caller = get_caller_address();
             assert(
                 !self.user_to_course_status.entry((caller, course_identifier)).read(),
@@ -439,7 +439,7 @@ pub mod AttenSysCourse {
             self.emit(AcquiredCourse { course_identifier, owner: course_owner, candidate: caller });
         }
 
-        fn remove_course(ref self: ContractState, course_identifier: u256) {
+        fn remove_course(ref self: ContractState, course_identifier: u128) {
             let caller = get_caller_address();
             let mut _owner = self
                 .specific_course_info_with_identifer
@@ -526,14 +526,14 @@ pub mod AttenSysCourse {
 
         // know if user takes a course
         fn is_user_taking_course(
-            self: @ContractState, user: ContractAddress, course_id: u256,
+            self: @ContractState, user: ContractAddress, course_id: u128,
         ) -> bool {
             self.user_to_course_status.entry((user, course_id)).read()
         }
 
         // know if user is certified for a course
         fn is_user_certified_for_course(
-            self: @ContractState, user: ContractAddress, course_id: u256,
+            self: @ContractState, user: ContractAddress, course_id: u128,
         ) -> bool {
             self.is_course_certified.entry((user, course_id)).read()
         }
@@ -544,7 +544,7 @@ pub mod AttenSysCourse {
         // and write the new uri to state.
         fn add_replace_course_content(
             ref self: ContractState,
-            course_identifier: u256,
+            course_identifier: u128,
             owner_: ContractAddress,
             new_course_uri: ByteArray,
         ) {
@@ -605,7 +605,7 @@ pub mod AttenSysCourse {
         }
 
   
-        fn finish_course_claim_certification(ref self: ContractState, course_identifier: u256) {
+        fn finish_course_claim_certification(ref self: ContractState, course_identifier: u128) {
             //only check for accessment score. that is if there's assesment
             //todo : verifier check, get a value from frontend, confirm the hash if it matches with
             //what is being saved. goal is to avoid fraudulent course claim.
@@ -652,13 +652,13 @@ pub mod AttenSysCourse {
 
 
         fn check_course_completion_status_n_certification(
-            self: @ContractState, course_identifier: u256, candidate: ContractAddress,
+            self: @ContractState, course_identifier: u128, candidate: ContractAddress,
         ) -> bool {
             self.completion_status.entry((candidate, course_identifier)).read()
         }
 
         fn get_course_infos(
-            self: @ContractState, course_identifiers: Array<u256>,
+            self: @ContractState, course_identifiers: Array<u128>,
         ) -> Array<Course> {
             let mut course_info_list: Array<Course> = array![];
             for element in course_identifiers {
@@ -668,7 +668,7 @@ pub mod AttenSysCourse {
             course_info_list
         }
 
-        fn get_user_completed_courses(self: @ContractState, user: ContractAddress) -> Array<u256> {
+        fn get_user_completed_courses(self: @ContractState, user: ContractAddress) -> Array<u128> {
             let vec = self.completed_courses.entry(user);
             let mut arr = array![];
             let len = vec.len();
@@ -715,7 +715,7 @@ pub mod AttenSysCourse {
         }
 
         fn get_course_nft_contract(
-            self: @ContractState, course_identifier: u256,
+            self: @ContractState, course_identifier: u128,
         ) -> ContractAddress {
             self.course_nft_contract_address.entry(course_identifier).read()
         }
@@ -743,7 +743,7 @@ pub mod AttenSysCourse {
             self.intended_new_admin.read()
         }
 
-        fn get_total_course_completions(self: @ContractState, course_identifier: u256) -> u256 {
+        fn get_total_course_completions(self: @ContractState, course_identifier: u128) -> u128 {
             let nft_contract_address = self
                 .course_nft_contract_address
                 .entry(course_identifier)
@@ -764,15 +764,15 @@ pub mod AttenSysCourse {
             assert(caller == self.get_admin(), 'Not admin');
         }
 
-        fn get_suspension_status(self: @ContractState, course_identifier: u256) -> bool {
+        fn get_suspension_status(self: @ContractState, course_identifier: u128) -> bool {
             self.specific_course_info_with_identifer.entry(course_identifier).is_suspended.read()
         }
 
-        fn get_course_approval_status(self: @ContractState, course_identifier: u256) -> bool {
+        fn get_course_approval_status(self: @ContractState, course_identifier: u128) -> bool {
             self.specific_course_info_with_identifer.entry(course_identifier).is_approved.read()
         }
 
-        fn toggle_suspension(ref self: ContractState, course_identifier: u256, suspend: bool) {
+        fn toggle_suspension(ref self: ContractState, course_identifier: u128, suspend: bool) {
             self.ensure_admin();
 
             let course = self.specific_course_info_with_identifer.entry(course_identifier).read();
@@ -807,7 +807,7 @@ pub mod AttenSysCourse {
             self.calculate_course_price_in_strk(usd_price)
         }
 
-        fn update_price(ref self: ContractState, course_identifier: u256, new_price: u128) {
+        fn update_price(ref self: ContractState, course_identifier: u128, new_price: u128) {
             let caller = get_caller_address();
             let current_creator_info: Creator = self.course_creator_info.entry(caller).read();
             assert(current_creator_info.creator_status == true, 'not creator');
@@ -821,7 +821,7 @@ pub mod AttenSysCourse {
             self.emit(CoursePriceUpdated { course_identifier, new_price });
         }
 
-        fn toggle_course_approval(ref self: ContractState, course_identifier: u256, approve: bool) {
+        fn toggle_course_approval(ref self: ContractState, course_identifier: u128, approve: bool) {
             self.ensure_admin();
 
             let mut course = self
@@ -869,7 +869,7 @@ pub mod AttenSysCourse {
             }
         }
         
-        fn creator_withdraw(ref self: ContractState, amount: u256){
+        fn creator_withdraw(ref self: ContractState, amount: u128){
             let caller = get_caller_address();
             let token_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
             let contract_token_balance = token_dispatcher.balanceOf(get_contract_address());
@@ -886,14 +886,14 @@ pub mod AttenSysCourse {
             }            
         }
         
-        fn init_fee_percent(ref self: ContractState, fee: u256){
+        fn init_fee_percent(ref self: ContractState, fee: u128){
             assert(fee > 0, 'fee cannot be zero');
             assert(fee <= 100, 'fee cannot be > 100');
             assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
             self.fee_value.write(fee);
         }
         
-        fn admin_withdrawables(ref self: ContractState, amount: u256){
+        fn admin_withdrawables(ref self: ContractState, amount: u128){
             assert(amount > 0, 'amount cannot be zero');
             assert(amount <= self.fee_withdrawable.read(), 'Not enough balance');
             assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
@@ -903,10 +903,10 @@ pub mod AttenSysCourse {
                 self.fee_withdrawable.write(self.fee_withdrawable.read() - amount);
             }
         }
-        fn get_creator_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u256{
+        fn get_creator_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u128{
             self.withdrawable_amount.entry(user).read()
         }
-        fn get_fee_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u256{
+        fn get_fee_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u128{
             self.fee_withdrawable.read()
         }
 
