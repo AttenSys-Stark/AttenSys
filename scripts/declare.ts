@@ -35,17 +35,17 @@ dotenv.config();
       });
       console.log('Attensys Course Contract declared with classHash =', coursedeclareResponse.class_hash);
 
-      const EventdeclareResponse = await account0.declare({
-        contract: BsierraCode,
-        casm: BcasmCode,
-      });
-      console.log('Attensys Event Contract declared with classHash =', EventdeclareResponse.class_hash);
+    //   const EventdeclareResponse = await account0.declare({
+    //     contract: BsierraCode,
+    //     casm: BcasmCode,
+    //   });
+    //   console.log('Attensys Event Contract declared with classHash =', EventdeclareResponse.class_hash);
 
-      const OrgdeclareResponse = await account0.declare({
-        contract: CsierraCode,
-        casm: CcasmCode,
-      });
-      console.log('Attensys Org Contract declared with classHash =', OrgdeclareResponse.class_hash);
+    //   const OrgdeclareResponse = await account0.declare({
+    //     contract: CsierraCode,
+    //     casm: CcasmCode,
+    //   });
+    //   console.log('Attensys Org Contract declared with classHash =', OrgdeclareResponse.class_hash);
     
  }
 

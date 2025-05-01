@@ -284,7 +284,7 @@ fn test_course_purchase() {
     println!("student balance before purchase: {}", balance);
      let first_balance = token_dispatcher.balance_of(contract_address);
      println!("contract balance before purchase: {}", first_balance);
-     token_dispatcher.approve(contract_address, 50000000000000);
+     token_dispatcher.approve(contract_address, 500000000000000000000000000);
      stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
    
     start_cheat_caller_address(contract_address, student.try_into().unwrap());
@@ -321,7 +321,7 @@ fn test_purchase_course_completions_n_withdrawals() {
 
     let course_creator_address: ContractAddress = contract_address_const::<'course_creator'>();
     start_cheat_caller_address(contract_address, course_creator_address);
-    attensys_course_contract.create_course(course_creator_address, true, base_uri, name, symbol, base_uri_2, 10);
+    attensys_course_contract.create_course(course_creator_address, true, base_uri, name, symbol, base_uri_2, 1);
 
     let initial_count = attensys_course_contract.get_total_course_completions(1);
     assert(initial_count == 0, 'initial count should be 0');
@@ -333,7 +333,7 @@ fn test_purchase_course_completions_n_withdrawals() {
      println!("student1 balance before purchase: {}", balance);
      let first_contract_balance = token_dispatcher.balance_of(contract_address);
      println!("contract balance before student 1 purchase: {}", first_contract_balance);
-     token_dispatcher.approve(contract_address, 50000000000000);
+     token_dispatcher.approve(contract_address, 50000000000000000000000000);
      stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
 
 
@@ -343,7 +343,7 @@ fn test_purchase_course_completions_n_withdrawals() {
      println!("student2 balance before purchase: {}", balance_two);
      let second_contract_balance = token_dispatcher.balance_of(contract_address);
      println!("contract balance before student 2 purchase: {}", second_contract_balance);
-     token_dispatcher.approve(contract_address, 50000000000000);
+     token_dispatcher.approve(contract_address, 50000000000000000000000000);
      stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
 
 
@@ -378,8 +378,9 @@ fn test_purchase_course_completions_n_withdrawals() {
     start_cheat_caller_address(contract_address, course_creator_address);
     let balance_before_creator_withdrawal = token_dispatcher.balance_of(course_creator_address);
     println!("contract balance before creator withdrawing: {}", balance_before_creator_withdrawal);
-
-    attensys_course_contract.creator_withdraw(new_balance_second);
+    let creator_withdrawable = attensys_course_contract.get_creator_withdrawable_amount(course_creator_address);
+    println!("creator withdrawable amount: {}", creator_withdrawable);
+    attensys_course_contract.creator_withdraw(creator_withdrawable);
     let balance_after_creator_withdrawal = token_dispatcher.balance_of(contract_address);
     // println!("contract balance after creator withdrawing 20 strk minus 2 strk fee: {}", balance_after_creator_withdrawal);
     println!("contract balance after creator withdrawing all strk minus fee: {}", balance_after_creator_withdrawal);
@@ -388,7 +389,7 @@ fn test_purchase_course_completions_n_withdrawals() {
     start_cheat_caller_address(contract_address, contract_owner_address.try_into().unwrap()); 
     let balance_before_admin_start_withdrawal = token_dispatcher.balance_of(contract_address); 
     println!("contract balance before admin withdrawing all generated in fee: {}", balance_before_admin_start_withdrawal);
-    attensys_course_contract.admin_withdrawables(13);    
+    attensys_course_contract.admin_withdrawables(1);    
     let balance_after_admin_withdrawal = token_dispatcher.balance_of(contract_address);
     let balance_after_creator_withdrawal = token_dispatcher.balance_of(course_creator_address);
     println!("contract balance after admin withdrawing all generated in fee: {}", balance_after_admin_withdrawal);
