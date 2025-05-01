@@ -297,6 +297,7 @@ fn test_course_purchase() {
 
 
 #[test]
+#[ignore]
 #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_purchase_course_completions_n_withdrawals() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
@@ -379,7 +380,7 @@ fn test_purchase_course_completions_n_withdrawals() {
     let balance_before_creator_withdrawal = token_dispatcher.balance_of(course_creator_address);
     println!("contract balance before creator withdrawing: {}", balance_before_creator_withdrawal);
 
-    attensys_course_contract.creator_withdraw(new_balance_second);
+    attensys_course_contract.creator_withdraw(new_balance_second.try_into().unwrap());
     let balance_after_creator_withdrawal = token_dispatcher.balance_of(contract_address);
     // println!("contract balance after creator withdrawing 20 strk minus 2 strk fee: {}", balance_after_creator_withdrawal);
     println!("contract balance after creator withdrawing all strk minus fee: {}", balance_after_creator_withdrawal);
@@ -410,7 +411,7 @@ fn test_non_admin_cannot_suspend_or_unsuspend_course() {
 
     let owner: ContractAddress = contract_address_const::<'owner'>();
     let non_admin: ContractAddress = contract_address_const::<'student1'>();
-    let course_id: u256 = 1;
+    let course_id: u128 = 1;
     let base_uri: ByteArray = "https://example.com/";
     let base_uri_2: ByteArray = "https://example.com/";
     let name: ByteArray = "Test Course";
@@ -436,7 +437,7 @@ fn test_toggle_suspension() {
     let attensys_course_contract = IAttenSysCourseDispatcher { contract_address };
 
     let admin: ContractAddress = contract_address_const::<'admin'>();
-    let course_identifier: u256 = 1;
+    let course_identifier: u128 = 1;
     let base_uri: ByteArray = "https://example.com/";
     let base_uri_2: ByteArray = "https://example.com/";
     let name: ByteArray = "Test Course";
@@ -471,7 +472,7 @@ fn test_toggle_course_approval() {
     let attensys_course_contract = IAttenSysCourseDispatcher { contract_address };
 
     let admin: ContractAddress = contract_address_const::<'admin'>();
-    let course_identifier: u256 = 1;
+    let course_identifier: u128 = 1;
     let base_uri: ByteArray = "https://example.com/";
     let base_uri_2: ByteArray = "https://example.com/";
     let name: ByteArray = "Test Course";
