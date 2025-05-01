@@ -99,7 +99,7 @@ fn test_pricefeed_work_with_course_creation() {
     let attensys_course_contract = IAttenSysCourseDispatcher { contract_address: course_contract };
     assert(
         attensys_course_contract.get_price_of_strk_usd() == price_of_strk_usd,
-        'Price should match oracle value',
+        'Price should match oracle',
     );
 
     let owner: ContractAddress = contract_address_const::<'owner'>();
@@ -156,7 +156,7 @@ fn test_update_price() {
     };
     let oracle_response = oracle.get_data(asset_data_type, AggregationMode::Median(()));
     let price_of_strk_usd = oracle_response.price;
-    let (c, hash) = deploy_nft_contract("AttenSysNft");
+    let (c, hash) = deploy_nft_contract("AttenSysNft");                                                   
     let course_contract = deploy_contract("AttenSysCourse", hash);
     let attensys_course_contract = IAttenSysCourseDispatcher { contract_address: course_contract };
     assert(
