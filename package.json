@@ -10,6 +10,7 @@
     "chain": "starknet-devnet --seed 0 --account-class cairo1",
     "test": "snforge test",
     "deploy": "ts-node scripts/deploy.ts",
+    "declare": "ts-node scripts/declare.ts",
     "mainnet-deploy": "ts-node scripts/mainnet-deploy.ts"
   },
   "author": "",
