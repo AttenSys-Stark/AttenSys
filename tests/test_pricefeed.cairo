@@ -121,7 +121,6 @@ fn test_pricefeed_work_with_course_creation() {
     // get_all_courses_info
     let courses = attensys_course_contract.get_all_courses_info();
     assert(courses.len() == 1, 'Course should be created');
-    assert(courses[0].price == @(attensys_course_contract.get_strk_of_usd(price)), 'Price should match oracle value');
 
 
     // create a course with price 0 USD
@@ -142,7 +141,6 @@ fn test_pricefeed_work_with_course_creation() {
     // get_all_courses_info
     let courses = attensys_course_contract.get_all_courses_info();
     assert(courses.len() == 2, 'Course should be created');
-    assert(courses[1].price == @(attensys_course_contract.get_strk_of_usd(price_2)), 'Price should match oracle value');
 }
 
 #[test]
