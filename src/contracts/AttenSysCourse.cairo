@@ -63,7 +63,9 @@ pub trait IAttenSysCourse<TContractState> {
     fn init_fee_percent(ref self: TContractState, fee: u128);
     fn admin_withdrawables(ref self: TContractState, amount: u128);
     fn get_creator_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u128;
-    fn get_fee_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u128;
+    fn get_fee_withdrawable_amount(self: @TContractState) -> u128;
+    fn get_total_course_sales(self: @TContractState, user: ContractAddress) -> u128;
+     
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -71,7 +73,7 @@ pub trait IAttenSysCourse<TContractState> {
 #[starknet::interface]
 pub trait IAttenSysNft<TContractState> {
     // NFT contract
-    fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u128);
+    fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u256);
 }
 
 #[starknet::interface]
@@ -82,9 +84,9 @@ pub trait IERC20<TContractState> {
     fn total_supply(self: @TContractState) -> u128;
     fn balanceOf(self: @TContractState, account: ContractAddress) -> u128;
     fn allowance(self: @TContractState, owner: ContractAddress, spender: ContractAddress) -> u128;
-    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u128) -> bool;
+    fn transfer(ref self: TContractState, recipient: ContractAddress, amount: u256) -> bool;
     fn transferFrom(
-        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u128,
+        ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256,
     ) -> bool;
     fn approve(ref self: TContractState, spender: ContractAddress, amount: u128) -> bool;
 }
@@ -123,6 +125,7 @@ pub mod AttenSysCourse {
         0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a;
     const KEY: felt252 = 6004514686061859652; // STRK/USD 
     const ORACLE_PRECISION: u128 = 100_000_000;
+    const DECIMALS: u128 = 10_00_000_000_000_000_000; // 18 decimals
 
     const STRK_CONTRACT_ADDRESS: felt252 = 0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
 
@@ -420,8 +423,8 @@ pub mod AttenSysCourse {
 
             let amount_in_strk = self.calculate_course_price_in_strk(amount_usd);
             
-            let erc20_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),};
-            erc20_dispatcher.transferFrom(get_caller_address(), get_contract_address(), amount_in_strk.into());
+            let erc20_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap()};
+            erc20_dispatcher.transferFrom(get_caller_address(), get_contract_address(), (amount_in_strk * DECIMALS).into());
 
             self.user_to_course_status.entry((caller, course_identifier)).write(true);
             let derived_course = self
@@ -637,7 +640,7 @@ pub mod AttenSysCourse {
                 .track_minted_nft_id
                 .entry((course_identifier, nft_contract_address))
                 .read();
-            nft_dispatcher.mint(get_caller_address(), nft_id);
+            nft_dispatcher.mint(get_caller_address(), nft_id.into());
             self
                 .track_minted_nft_id
                 .entry((course_identifier, nft_contract_address))
@@ -880,7 +883,7 @@ pub mod AttenSysCourse {
             let fee = amount * self.fee_value.read() / 100;
             let withdrawable_less_fee = amount - fee;
             self.fee_withdrawable.write(self.fee_withdrawable.read() + fee);
-            let has_transferred = token_dispatcher.transfer(recipient: caller, amount: withdrawable_less_fee);
+            let has_transferred = token_dispatcher.transfer(recipient: caller, amount: (withdrawable_less_fee * DECIMALS).into());
             if has_transferred {
                 self.withdrawable_amount.entry(caller).write(self.withdrawable_amount.entry(caller).read() - amount);
             }            
@@ -898,7 +901,7 @@ pub mod AttenSysCourse {
             assert(amount <= self.fee_withdrawable.read(), 'Not enough balance');
             assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
             let token_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
-            let has_transferred = token_dispatcher.transfer(recipient: get_caller_address(), amount: amount);
+            let has_transferred = token_dispatcher.transfer(recipient: get_caller_address(), amount: (amount * DECIMALS).into());
             if has_transferred {
                 self.fee_withdrawable.write(self.fee_withdrawable.read() - amount);
             }
@@ -906,8 +909,11 @@ pub mod AttenSysCourse {
         fn get_creator_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u128{
             self.withdrawable_amount.entry(user).read()
         }
-        fn get_fee_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u128{
+        fn get_fee_withdrawable_amount(self: @ContractState) -> u128{
             self.fee_withdrawable.read()
+        }
+        fn get_total_course_sales(self: @ContractState, user: ContractAddress) -> u128{
+            self.total_course_sales.read(user)
         }
 
 
