@@ -1,12 +1,12 @@
 use attendsys::contracts::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
+use openzeppelin::token::erc20::interface::{ERC20ABIDispatcher, ERC20ABIDispatcherTrait};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
-    stop_cheat_caller_address
+    stop_cheat_caller_address,
 };
 use starknet::{ClassHash, ContractAddress, contract_address_const};
-use openzeppelin::token::erc20::interface::{ERC20ABIDispatcher, ERC20ABIDispatcherTrait};
 
 
 fn zero_address() -> ContractAddress {
@@ -271,25 +271,33 @@ fn test_course_purchase() {
     let name: ByteArray = "Test Course";
     let symbol: ByteArray = "TC";
 
-    const STRK_CONTRACT_ADDRESS: felt252 = 0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
+    const STRK_CONTRACT_ADDRESS: felt252 =
+        0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
 
     start_cheat_caller_address(contract_address, owner);
     attensys_course_contract.create_course(owner, true, base_uri, name, symbol, base_uri_2, 10);
     stop_cheat_caller_address(contract_address);
 
-     //approve contract to spend token
-     start_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap(), student.try_into().unwrap());
-     let token_dispatcher = ERC20ABIDispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
-     let balance = token_dispatcher.balance_of(student.try_into().unwrap());
+    //approve contract to spend token
+    start_cheat_caller_address(
+        STRK_CONTRACT_ADDRESS.try_into().unwrap(), student.try_into().unwrap(),
+    );
+    let token_dispatcher = ERC20ABIDispatcher {
+        contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
+    };
+    let balance = token_dispatcher.balance_of(student.try_into().unwrap());
     println!("student balance before purchase: {}", balance);
-     let first_balance = token_dispatcher.balance_of(contract_address);
-     println!("contract balance before purchase: {}", first_balance);
-     token_dispatcher.approve(contract_address, 50000000000000);
-     stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
-   
+    let first_balance = token_dispatcher.balance_of(contract_address);
+    println!("contract balance before purchase: {}", first_balance);
+    token_dispatcher.approve(contract_address, 50000000000000);
+    stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
+
     start_cheat_caller_address(contract_address, student.try_into().unwrap());
     attensys_course_contract.acquire_a_course(1);
-    assert(attensys_course_contract.is_user_taking_course(student.try_into().unwrap(), 1), 'not acquired');
+    assert(
+        attensys_course_contract.is_user_taking_course(student.try_into().unwrap(), 1),
+        'not acquired',
+    );
     let second_balance = token_dispatcher.balance_of(contract_address);
     println!("contract balance after purchase: {}", second_balance);
     stop_cheat_caller_address(contract_address);
@@ -309,55 +317,68 @@ fn test_purchase_course_completions_n_withdrawals() {
     attensys_course_contract.init_fee_percent(10);
     stop_cheat_caller_address(contract_address);
 
-
     let owner: felt252 = 0x0330c28cd779dE4d895c2B99C3878DD6CBB30C3Da3be117e83b9CB3b947E5A1A;
-    let student1:felt252 = 0x05Bf9E38B116B37A8249a4cd041D402903a5E8a67C1a99d2D336ac7bd8B4034e;
+    let student1: felt252 = 0x05Bf9E38B116B37A8249a4cd041D402903a5E8a67C1a99d2D336ac7bd8B4034e;
     let student2: felt252 = 0x047EC7F6120Eb1aD7d037B40c37E9dDDfC5f3C7D6f63d49BE9683D278ccfF0ec;
     let base_uri: ByteArray = "https://example.com/";
     let base_uri_2: ByteArray = "https://example.com/";
     let name: ByteArray = "Test Course";
     let symbol: ByteArray = "TC";
 
-    const STRK_CONTRACT_ADDRESS: felt252 = 0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
+    const STRK_CONTRACT_ADDRESS: felt252 =
+        0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
 
     let course_creator_address: ContractAddress = contract_address_const::<'course_creator'>();
     start_cheat_caller_address(contract_address, course_creator_address);
-    attensys_course_contract.create_course(course_creator_address, true, base_uri, name, symbol, base_uri_2, 10);
+    attensys_course_contract
+        .create_course(course_creator_address, true, base_uri, name, symbol, base_uri_2, 10);
 
     let initial_count = attensys_course_contract.get_total_course_completions(1);
     assert(initial_count == 0, 'initial count should be 0');
 
-     //approve contract to spend token
-     start_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap(), student1.try_into().unwrap());
-     let token_dispatcher = ERC20ABIDispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
-     let balance = token_dispatcher.balance_of(student1.try_into().unwrap());
-     println!("student1 balance before purchase: {}", balance);
-     let first_contract_balance = token_dispatcher.balance_of(contract_address);
-     println!("contract balance before student 1 purchase: {}", first_contract_balance);
-     token_dispatcher.approve(contract_address, 50000000000000);
-     stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
+    //approve contract to spend token
+    start_cheat_caller_address(
+        STRK_CONTRACT_ADDRESS.try_into().unwrap(), student1.try_into().unwrap(),
+    );
+    let token_dispatcher = ERC20ABIDispatcher {
+        contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
+    };
+    let balance = token_dispatcher.balance_of(student1.try_into().unwrap());
+    println!("student1 balance before purchase: {}", balance);
+    let first_contract_balance = token_dispatcher.balance_of(contract_address);
+    println!("contract balance before student 1 purchase: {}", first_contract_balance);
+    token_dispatcher.approve(contract_address, 50000000000000);
+    stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
 
-
-     start_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap(), student2.try_into().unwrap());
-     let token_dispatcher = ERC20ABIDispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
-     let balance_two = token_dispatcher.balance_of(student2.try_into().unwrap());
-     println!("student2 balance before purchase: {}", balance_two);
-     let second_contract_balance = token_dispatcher.balance_of(contract_address);
-     println!("contract balance before student 2 purchase: {}", second_contract_balance);
-     token_dispatcher.approve(contract_address, 50000000000000);
-     stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
-
+    start_cheat_caller_address(
+        STRK_CONTRACT_ADDRESS.try_into().unwrap(), student2.try_into().unwrap(),
+    );
+    let token_dispatcher = ERC20ABIDispatcher {
+        contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
+    };
+    let balance_two = token_dispatcher.balance_of(student2.try_into().unwrap());
+    println!("student2 balance before purchase: {}", balance_two);
+    let second_contract_balance = token_dispatcher.balance_of(contract_address);
+    println!("contract balance before student 2 purchase: {}", second_contract_balance);
+    token_dispatcher.approve(contract_address, 50000000000000);
+    stop_cheat_caller_address(STRK_CONTRACT_ADDRESS.try_into().unwrap());
 
     start_cheat_caller_address(contract_address, student1.try_into().unwrap());
     attensys_course_contract.acquire_a_course(1);
-    assert(attensys_course_contract.is_user_taking_course(student1.try_into().unwrap(), 1), 'not acquired');
+    assert(
+        attensys_course_contract.is_user_taking_course(student1.try_into().unwrap(), 1),
+        'not acquired',
+    );
     let new_balance_first = token_dispatcher.balance_of(contract_address);
     println!("contract balance after student 1 purchase: {}", new_balance_first);
     stop_cheat_caller_address(contract_address);
 
     start_cheat_caller_address(contract_address, student2.try_into().unwrap());
     attensys_course_contract.acquire_a_course(1);
-    assert(attensys_course_contract.is_user_taking_course(student2.try_into().unwrap(), 1), 'not acquired');
+    assert(
+        attensys_course_contract.is_user_taking_course(student2.try_into().unwrap(), 1),
+        'not acquired',
+    );
     let new_balance_second = token_dispatcher.balance_of(contract_address);
     println!("contract balance after student 2 purchase: {}", new_balance_second);
     stop_cheat_caller_address(contract_address);
@@ -382,21 +403,32 @@ fn test_purchase_course_completions_n_withdrawals() {
 
     attensys_course_contract.creator_withdraw(new_balance_second.try_into().unwrap());
     let balance_after_creator_withdrawal = token_dispatcher.balance_of(contract_address);
-    // println!("contract balance after creator withdrawing 20 strk minus 2 strk fee: {}", balance_after_creator_withdrawal);
-    println!("contract balance after creator withdrawing all strk minus fee: {}", balance_after_creator_withdrawal);
+    // println!("contract balance after creator withdrawing 20 strk minus 2 strk fee: {}",
+    // balance_after_creator_withdrawal);
+    println!(
+        "contract balance after creator withdrawing all strk minus fee: {}",
+        balance_after_creator_withdrawal,
+    );
     stop_cheat_caller_address(contract_address);
 
-    start_cheat_caller_address(contract_address, contract_owner_address.try_into().unwrap()); 
-    let balance_before_admin_start_withdrawal = token_dispatcher.balance_of(contract_address); 
-    println!("contract balance before admin withdrawing all generated in fee: {}", balance_before_admin_start_withdrawal);
-    attensys_course_contract.admin_withdrawables(13);    
+    start_cheat_caller_address(contract_address, contract_owner_address.try_into().unwrap());
+    let balance_before_admin_start_withdrawal = token_dispatcher.balance_of(contract_address);
+    println!(
+        "contract balance before admin withdrawing all generated in fee: {}",
+        balance_before_admin_start_withdrawal,
+    );
+    attensys_course_contract.admin_withdrawables(13);
     let balance_after_admin_withdrawal = token_dispatcher.balance_of(contract_address);
     let balance_after_creator_withdrawal = token_dispatcher.balance_of(course_creator_address);
-    println!("contract balance after admin withdrawing all generated in fee: {}", balance_after_admin_withdrawal);
-    println!("contract balance after creator withdrawing all: {}", balance_after_creator_withdrawal);
-    
-    stop_cheat_caller_address(contract_address);
+    println!(
+        "contract balance after admin withdrawing all generated in fee: {}",
+        balance_after_admin_withdrawal,
+    );
+    println!(
+        "contract balance after creator withdrawing all: {}", balance_after_creator_withdrawal,
+    );
 
+    stop_cheat_caller_address(contract_address);
 }
 
 
