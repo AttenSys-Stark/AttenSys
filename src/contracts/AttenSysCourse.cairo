@@ -565,20 +565,22 @@ pub mod AttenSysCourse {
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .write(current_course_info.clone());
-
+            // let mut copy = array![];
+            // let target_index : u64 = 0;
+            // for i in 0..self.all_course_info.len() {
+            //     copy.append(self.all_course_info.at(i).read());
+            // }
             //run a loop to check if course ID exists in all course info vece, if it does, replace
-            //the uris.
-            if self.all_course_info.len() == 0 {
-                self.all_course_info.append().write(current_course_info.clone());
-            } else {
-                for i in 0..self.all_course_info.len() {
+            //the uris.        
+            for i in 0..self.all_course_info.len() {
                     if self.all_course_info.at(i).read().course_identifier == course_identifier {
                         self.all_course_info.at(i).uri.write(new_course_uri.clone());
-                    } else {
-                        self.all_course_info.append().write(current_course_info.clone());
-                    }
-                };
-            }
+                        self.all_course_info.at(i).course_ipfs_uri.write(new_course_uri.clone());
+                        self.specific_course_info_with_identifer.entry(course_identifier).course_ipfs_uri.write(new_course_uri.clone());
+                        self.specific_course_info_with_identifer.entry(course_identifier).uri.write(new_course_uri.clone());
+                        break;
+                    };
+            };         
             //run a loop to update the creator content storage data
             let mut i: u64 = 0;
             let vec_len = self.creator_to_all_content.entry(owner_).len();
@@ -592,8 +594,15 @@ pub mod AttenSysCourse {
                         .creator_to_all_content
                         .entry(owner_)
                         .at(i)
-                        .uri
+                        .course_ipfs_uri
                         .write(new_course_uri.clone());
+                    self
+                        .creator_to_all_content
+                        .entry(owner_)
+                        .at(i)
+                        .course_ipfs_uri
+                        .write(new_course_uri.clone());
+                    break;
                 }
                 i += 1;
             }
