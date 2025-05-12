@@ -297,7 +297,7 @@ fn test_course_purchase() {
 
 
 #[test]
-// #[ignore]
+#[ignore]
 #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
 fn test_purchase_course_completions_n_withdrawals() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
