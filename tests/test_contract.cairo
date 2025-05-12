@@ -1,21 +1,21 @@
 // use attendsys::AttenSys::IAttenSysSafeDispatcher;
 // use attendsys::AttenSys::IAttenSysSafeDispatcherTrait;
-use attendsys::contracts::AttenSysCourse::{
+use attendsys::contracts::course::AttenSysCourse::{
     AttenSysCourse, IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
-use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
-use attendsys::contracts::AttenSysOrg::AttenSysOrg::{
+use attendsys::contracts::event::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::org::AttenSysOrg::AttenSysOrg::{
     ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, Event,
     InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile, OrganizationSuspended,
     RegistrationApproved, RegistrationDeclined,
 };
-use attendsys::contracts::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
+use attendsys::contracts::org::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
 // use attendsys::contracts::AttenSysSponsor:: { AttenSysSponsor, IAttenSysSponsorDispatcher };
 // use attendsys::contracts::AttenSysSponsor::IAttenSysSponsorDispatcherTrait;
 // use attendsys::contracts::AttenSysSponsor::IERC20Dispatcher;
 // use attendsys::contracts::AttenSysSponsor::IERC20DispatcherTrait;
-use attendsys::contracts::AttenSysSponsor::AttenSysSponsor;
-use attendsys::contracts::AttenSysSponsor::{
+use attendsys::contracts::sponsor::AttenSysSponsor::AttenSysSponsor;
+use attendsys::contracts::sponsor::AttenSysSponsor::{
     IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait, IERC20Dispatcher,
     IERC20DispatcherTrait,
 };

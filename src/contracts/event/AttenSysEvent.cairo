@@ -76,7 +76,7 @@ pub trait IAttenSysNft<TContractState> {
 
 #[starknet::contract]
 mod AttenSysEvent {
-    use attendsys::contracts::AttenSysSponsor::{
+    use attendsys::contracts::sponsor::AttenSysSponsor::{
         IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
     };
     use core::num::traits::Zero;

@@ -1,4 +1,4 @@
-use attendsys::contracts::data::{
+use attendsys::contracts::registry::data::{
     AttensysUserData, IAttensysUserDataDispatcher, IAttensysUserDataDispatcherTrait,
 };
 use snforge_std::{

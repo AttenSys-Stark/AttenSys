@@ -1,8 +1,8 @@
-use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
-use attendsys::contracts::AttenSysSponsor::{
+use attendsys::contracts::event::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::sponsor::AttenSysSponsor::{
     AttenSysSponsor, IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
 };
-use attendsys::contracts::AttenSysToken;
+use attendsys::contracts::token::AttenSysToken;
 // use openzeppelin::token::erc20::interface::{IERC20MixinDispatcher, IERC20MixinDispatcherTrait};
 use openzeppelin::token::erc20::interface::{ERC20ABIDispatcher, ERC20ABIDispatcherTrait};
 use snforge_std::{

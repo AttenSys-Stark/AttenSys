@@ -1,4 +1,4 @@
-use attendsys::contracts::AttenSysSponsor::{
+use attendsys::contracts::sponsor::AttenSysSponsor::{
     IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait, IERC20Dispatcher,
     IERC20DispatcherTrait,
 };

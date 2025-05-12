@@ -138,7 +138,7 @@ pub trait IAttenSysOrg<TContractState> {
 //The contract
 #[starknet::contract]
 pub mod AttenSysOrg {
-    use attendsys::contracts::AttenSysSponsor::{
+    use attendsys::contracts::sponsor::AttenSysSponsor::{
         IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
     };
     use core::num::traits::Zero;

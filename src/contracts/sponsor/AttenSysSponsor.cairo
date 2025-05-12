@@ -29,7 +29,7 @@ pub trait IAttenSysSponsor<TContractState> {
 
 #[starknet::contract]
 pub mod AttenSysSponsor {
-    use attendsys::contracts::AttenSysSponsor::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use attendsys::contracts::sponsor::AttenSysSponsor::{IERC20Dispatcher, IERC20DispatcherTrait};
     use core::num::traits::Zero;
     use core::starknet::storage::Map;
     use starknet::{get_caller_address, get_contract_address};
