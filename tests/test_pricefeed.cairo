@@ -1,4 +1,4 @@
-use attendsys::contracts::AttenSysCourse::{
+use attendsys::contracts::course::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
 use attendsys::contracts::oracle::PriceFeed;

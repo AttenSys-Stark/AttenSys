@@ -1,4 +1,4 @@
-use attendsys::contracts::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::event::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
     stop_cheat_caller_address, test_address,

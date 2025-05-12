@@ -1,4 +1,4 @@
-use attendsys::contracts::AttenSysCourse::{
+use attendsys::contracts::course::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
 use snforge_std::{
@@ -352,6 +352,10 @@ fn test_purchase_course_completions_n_withdrawals() {
     attensys_course_contract.acquire_a_course(1);
     assert(attensys_course_contract.is_user_taking_course(student1.try_into().unwrap(), 1), 'not acquired');
     let new_balance_first = token_dispatcher.balance_of(contract_address);
+    let review_status = attensys_course_contract.get_review_status(1, student1.try_into().unwrap());
+    assert(!review_status, 'should be false');
+    attensys_course_contract.review(1);
+    assert(attensys_course_contract.get_review_status(1, student1.try_into().unwrap()), 'should be true');
     println!("contract balance after student 1 purchase: {}", new_balance_first);
     stop_cheat_caller_address(contract_address);
 

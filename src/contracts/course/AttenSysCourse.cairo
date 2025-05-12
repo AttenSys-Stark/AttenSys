@@ -65,6 +65,10 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_creator_withdrawable_amount(self: @TContractState, user: ContractAddress) -> u128;
     fn get_fee_withdrawable_amount(self: @TContractState) -> u128;
     fn get_total_course_sales(self: @TContractState, user: ContractAddress) -> u128;
+    fn review(ref self: TContractState, course_identifier: u128);
+    fn get_review_status(self: @TContractState, course_identifier: u128, user: ContractAddress) -> bool;
+
+
      
 }
 
@@ -105,7 +109,7 @@ pub mod AttenSysCourse {
     use pragma_lib::abi::{IPragmaABIDispatcher, IPragmaABIDispatcherTrait};
     use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
     use super::IAttenSysNftDispatcherTrait;
-    use attendsys::contracts::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use attendsys::contracts::course::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
     
 
 
@@ -261,6 +265,8 @@ pub mod AttenSysCourse {
         fee_withdrawable: u128,
         // total course sales 
         total_course_sales: Map<ContractAddress, u128>,
+        // review status    
+        course_review: Map<(ContractAddress, u128), bool>,
 
     }
     //find a way to keep track of all course identifiers for each owner.
@@ -923,6 +929,23 @@ pub mod AttenSysCourse {
         }
         fn get_total_course_sales(self: @ContractState, user: ContractAddress) -> u128{
             self.total_course_sales.read(user)
+        }
+
+         fn review(ref self: ContractState, course_identifier: u128){
+            let caller = get_caller_address();
+            assert(
+                self.user_to_course_status.entry((caller, course_identifier)).read(),
+                'not acquired',
+            );
+            assert(
+                !self.course_review.entry((caller, course_identifier)).read(),
+                'already reviewed',
+            );
+            self.course_review.entry((caller, course_identifier)).write(true);
+         }
+
+        fn get_review_status(self: @ContractState, course_identifier: u128, user: ContractAddress) -> bool{
+            self.course_review.entry((user, course_identifier)).read()
         }
 
 
