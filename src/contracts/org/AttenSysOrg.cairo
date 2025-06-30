@@ -63,6 +63,9 @@ pub trait IAttenSysOrg<TContractState> {
     fn suspend_org_bootcamp(
         ref self: TContractState, org_: ContractAddress, bootcamp_id_: u64, suspend: bool,
     );
+    fn remove_bootcamp(
+        ref self: TContractState, bootcamp_id: u64,
+    );
     fn get_bootcamp_active_meet_link(
         self: @TContractState, org_: ContractAddress, bootcamp_id: u64,
     ) -> ByteArray;
@@ -322,6 +325,7 @@ pub mod AttenSysOrg {
         SponsorshipFundWithdrawn: SponsorshipFundWithdrawn,
         OrganizationSuspended: OrganizationSuspended,
         BootCampSuspended: BootCampSuspended,
+        BootcampRemoved: BootcampRemoved,
         #[flat]
         OwnableEvent: OwnableComponent::Event,
         #[flat]
@@ -456,6 +460,13 @@ pub mod AttenSysOrg {
         pub bootcamp_id: u64,
         pub bootcamp_name: ByteArray,
         pub suspended: bool,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct BootcampRemoved {
+        pub org_contract_address: ContractAddress,
+        pub bootcamp_id: u64,
+        pub bootcamp_name: ByteArray,
     }
 
     #[constructor]
@@ -1183,6 +1194,93 @@ pub mod AttenSysOrg {
                     },
                 );
         }
+
+        fn remove_bootcamp(ref self: ContractState, bootcamp_id: u64) {
+            let caller = get_caller_address();
+            let status: bool = self.created_status.entry(caller).read();
+            
+            // Check if caller is an organization
+            assert(status, 'Not an organization');
+            
+            // Check if organization is not suspended
+            assert(!self.org_suspended.entry(caller).read(), 'Organization suspended');
+            
+            // Check if bootcamp exists
+            let bootcamp_count = self.org_to_bootcamps.entry(caller).len();
+            assert(bootcamp_id < bootcamp_count, 'Bootcamp does not exist');
+            
+            // Get bootcamp info
+            let bootcamp: Bootcamp = self.org_to_bootcamps.entry(caller).at(bootcamp_id).read();
+            
+            // Check if bootcamp is not suspended
+            assert(!self.bootcamp_suspended.entry(caller).entry(bootcamp_id).read(), 'Bootcamp suspended');
+            
+            // Check if bootcamp has no participants
+            assert(bootcamp.number_of_students == 0, 'Has participants');
+            
+            // Store bootcamp name for event emission
+            let bootcamp_name = bootcamp.bootcamp_name;
+            
+            // Remove bootcamp from org_to_bootcamps by replacing with last element and popping
+            let last_index = bootcamp_count - 1;
+            if bootcamp_id != last_index {
+                let last_bootcamp = self.org_to_bootcamps.entry(caller).at(last_index).read();
+                self.org_to_bootcamps.entry(caller).at(bootcamp_id).write(last_bootcamp);
+            }
+            let _ = self.org_to_bootcamps.entry(caller).pop();
+            
+            // Remove from all_bootcamps_created
+            let all_bootcamps_len = self.all_bootcamps_created.len();
+            for i in 0..all_bootcamps_len {
+                let current_bootcamp = self.all_bootcamps_created.at(i).read();
+                if current_bootcamp.address_of_org == caller && current_bootcamp.bootcamp_id == bootcamp_id {
+                    // Replace with last element and pop
+                    if i != all_bootcamps_len - 1 {
+                        let last_bootcamp = self.all_bootcamps_created.at(all_bootcamps_len - 1).read();
+                        self.all_bootcamps_created.at(i).write(last_bootcamp);
+                    }
+                    let _ = self.all_bootcamps_created.pop();
+                    break;
+                }
+            }
+            
+            // Clean up related state
+            // Remove uploaded videos by clearing the vector
+            let videos_len = self.org_to_uploaded_videos_link.entry((caller, bootcamp_id)).len();
+            for _ in 0..videos_len {
+                let _ = self.org_to_uploaded_videos_link.entry((caller, bootcamp_id)).pop();
+            }
+            
+            // Remove bootcamp suspension status
+            self.bootcamp_suspended.entry(caller).entry(bootcamp_id).write(false);
+            
+            // Remove bootcamp class data by clearing the vector
+            let class_data_len = self.bootcamp_class_data_id.entry((caller, bootcamp_id)).len();
+            for _ in 0..class_data_len {
+                let _ = self.bootcamp_class_data_id.entry((caller, bootcamp_id)).pop();
+            }
+            
+            // Remove certified students for this bootcamp by clearing the vector
+            let certified_students_len = self.certified_students_for_bootcamp.entry((caller, bootcamp_id)).len();
+            for _ in 0..certified_students_len {
+                let _ = self.certified_students_for_bootcamp.entry((caller, bootcamp_id)).pop();
+            }
+            
+            // Update organization bootcamp count
+            let mut org = self.organization_info.entry(caller).read();
+            org.number_of_all_bootcamps -= 1;
+            self.organization_info.entry(caller).write(org);
+            
+            // Emit event
+            self.emit(
+                BootcampRemoved {
+                    org_contract_address: caller,
+                    bootcamp_id: bootcamp_id,
+                    bootcamp_name: bootcamp_name,
+                },
+            );
+        }
+        
         // read functions
         fn get_all_org_bootcamps(self: @ContractState, org_: ContractAddress) -> Array<Bootcamp> {
             let mut arr_of_all_created_bootcamps = array![];
