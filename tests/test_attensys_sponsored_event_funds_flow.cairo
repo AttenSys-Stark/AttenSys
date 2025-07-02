@@ -1,4 +1,6 @@
-use attendsys::contracts::event::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::event::AttenSysEvent::{
+    IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait,
+};
 use attendsys::contracts::sponsor::AttenSysSponsor::{
     AttenSysSponsor, IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
 };

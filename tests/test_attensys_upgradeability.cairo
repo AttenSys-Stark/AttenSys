@@ -2,7 +2,9 @@ use attendsys::contracts::course::AttenSysCourse;
 use attendsys::contracts::course::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
-use attendsys::contracts::event::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::event::AttenSysEvent::{
+    IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait,
+};
 use attendsys::contracts::org::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,

@@ -66,10 +66,9 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_fee_withdrawable_amount(self: @TContractState) -> u128;
     fn get_total_course_sales(self: @TContractState, user: ContractAddress) -> u128;
     fn review(ref self: TContractState, course_identifier: u128);
-    fn get_review_status(self: @TContractState, course_identifier: u128, user: ContractAddress) -> bool;
-
-
-     
+    fn get_review_status(
+        self: @TContractState, course_identifier: u128, user: ContractAddress,
+    ) -> bool;
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -97,20 +96,22 @@ pub trait IERC20<TContractState> {
 
 #[starknet::contract]
 pub mod AttenSysCourse {
+    use attendsys::contracts::course::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
     use core::starknet::storage::{
         Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
         Vec, VecTrait,
     };
     use core::starknet::syscalls::deploy_syscall;
-    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address, get_contract_address};
+    use core::starknet::{
+        ClassHash, ContractAddress, contract_address_const, get_caller_address,
+        get_contract_address,
+    };
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
     use pragma_lib::abi::{IPragmaABIDispatcher, IPragmaABIDispatcherTrait};
     use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
     use super::IAttenSysNftDispatcherTrait;
-    use attendsys::contracts::course::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
-    
 
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -131,7 +132,8 @@ pub mod AttenSysCourse {
     const ORACLE_PRECISION: u128 = 100_000_000;
     const DECIMALS: u128 = 10_00_000_000_000_000_000; // 18 decimals
 
-    const STRK_CONTRACT_ADDRESS: felt252 = 0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
+    const STRK_CONTRACT_ADDRESS: felt252 =
+        0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D;
 
     #[event]
     #[derive(starknet::Event, Debug, Drop)]
@@ -263,11 +265,10 @@ pub mod AttenSysCourse {
         fee_value: u128,
         //withdrawable fee
         fee_withdrawable: u128,
-        // total course sales 
+        // total course sales
         total_course_sales: Map<ContractAddress, u128>,
-        // review status    
+        // review status
         course_review: Map<(ContractAddress, u128), bool>,
-
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -328,7 +329,7 @@ pub mod AttenSysCourse {
                 current_creator_info.number_of_courses += 1;
                 current_creator_info.creator_status = true;
             }
- 
+
             let mut course_call_data: Course = Course {
                 owner: owner_,
                 course_identifier: current_identifier,
@@ -425,12 +426,20 @@ pub mod AttenSysCourse {
             let amount_usd = self
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
-                .price.read();
+                .price
+                .read();
 
             let amount_in_strk = self.calculate_course_price_in_strk(amount_usd);
-            
-            let erc20_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap()};
-            erc20_dispatcher.transferFrom(get_caller_address(), get_contract_address(), (amount_in_strk * DECIMALS).into());
+
+            let erc20_dispatcher = IERC20Dispatcher {
+                contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
+            };
+            erc20_dispatcher
+                .transferFrom(
+                    get_caller_address(),
+                    get_contract_address(),
+                    (amount_in_strk * DECIMALS).into(),
+                );
 
             self.user_to_course_status.entry((caller, course_identifier)).write(true);
             let derived_course = self
@@ -438,13 +447,15 @@ pub mod AttenSysCourse {
                 .entry(course_identifier)
                 .read();
             let course_owner = derived_course.owner;
-            self.withdrawable_amount
+            self
+                .withdrawable_amount
                 .entry(course_owner)
                 .write(self.withdrawable_amount.entry(course_owner).read() + amount_in_strk.into());
             self.user_courses.entry(caller).append().write(derived_course);
-            self.total_course_sales.entry(course_owner).write(
-                self.total_course_sales.entry(course_owner).read() + 1,
-            );
+            self
+                .total_course_sales
+                .entry(course_owner)
+                .write(self.total_course_sales.entry(course_owner).read() + 1);
             self.emit(AcquiredCourse { course_identifier, owner: course_owner, candidate: caller });
         }
 
@@ -577,16 +588,24 @@ pub mod AttenSysCourse {
             //     copy.append(self.all_course_info.at(i).read());
             // }
             //run a loop to check if course ID exists in all course info vece, if it does, replace
-            //the uris.        
+            //the uris.
             for i in 0..self.all_course_info.len() {
-                    if self.all_course_info.at(i).read().course_identifier == course_identifier {
-                        self.all_course_info.at(i).uri.write(new_course_uri.clone());
-                        self.all_course_info.at(i).course_ipfs_uri.write(new_course_uri.clone());
-                        self.specific_course_info_with_identifer.entry(course_identifier).course_ipfs_uri.write(new_course_uri.clone());
-                        self.specific_course_info_with_identifer.entry(course_identifier).uri.write(new_course_uri.clone());
-                        break;
-                    };
-            };         
+                if self.all_course_info.at(i).read().course_identifier == course_identifier {
+                    self.all_course_info.at(i).uri.write(new_course_uri.clone());
+                    self.all_course_info.at(i).course_ipfs_uri.write(new_course_uri.clone());
+                    self
+                        .specific_course_info_with_identifer
+                        .entry(course_identifier)
+                        .course_ipfs_uri
+                        .write(new_course_uri.clone());
+                    self
+                        .specific_course_info_with_identifer
+                        .entry(course_identifier)
+                        .uri
+                        .write(new_course_uri.clone());
+                    break;
+                };
+            }
             //run a loop to update the creator content storage data
             let mut i: u64 = 0;
             let vec_len = self.creator_to_all_content.entry(owner_).len();
@@ -622,7 +641,7 @@ pub mod AttenSysCourse {
                 );
         }
 
-  
+
         fn finish_course_claim_certification(ref self: ContractState, course_identifier: u128) {
             //only check for accessment score. that is if there's assesment
             //todo : verifier check, get a value from frontend, confirm the hash if it matches with
@@ -886,10 +905,12 @@ pub mod AttenSysCourse {
                 }
             }
         }
-        
-        fn creator_withdraw(ref self: ContractState, amount: u128){
+
+        fn creator_withdraw(ref self: ContractState, amount: u128) {
             let caller = get_caller_address();
-            let token_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
+            let token_dispatcher = IERC20Dispatcher {
+                contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
+            };
             let contract_token_balance = token_dispatcher.balanceOf(get_contract_address());
             assert(self.withdrawable_amount.entry(caller).read() > 0, 'not admin');
             assert(amount <= contract_token_balance, 'Not enough balance');
@@ -898,57 +919,63 @@ pub mod AttenSysCourse {
             let fee = amount * self.fee_value.read() / 100;
             let withdrawable_less_fee = amount - fee;
             self.fee_withdrawable.write(self.fee_withdrawable.read() + fee);
-            let has_transferred = token_dispatcher.transfer(recipient: caller, amount: (withdrawable_less_fee * DECIMALS).into());
+            let has_transferred = token_dispatcher
+                .transfer(recipient: caller, amount: (withdrawable_less_fee * DECIMALS).into());
             if has_transferred {
-                self.withdrawable_amount.entry(caller).write(self.withdrawable_amount.entry(caller).read() - amount);
-            }            
+                self
+                    .withdrawable_amount
+                    .entry(caller)
+                    .write(self.withdrawable_amount.entry(caller).read() - amount);
+            }
         }
-        
-        fn init_fee_percent(ref self: ContractState, fee: u128){
+
+        fn init_fee_percent(ref self: ContractState, fee: u128) {
             assert(fee > 0, 'fee cannot be zero');
             assert(fee <= 100, 'fee cannot be > 100');
             assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
             self.fee_value.write(fee);
         }
-        
-        fn admin_withdrawables(ref self: ContractState, amount: u128){
+
+        fn admin_withdrawables(ref self: ContractState, amount: u128) {
             assert(amount > 0, 'amount cannot be zero');
             assert(amount <= self.fee_withdrawable.read(), 'Not enough balance');
             assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
-            let token_dispatcher = IERC20Dispatcher { contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(), };
-            let has_transferred = token_dispatcher.transfer(recipient: get_caller_address(), amount: (amount * DECIMALS).into());
+            let token_dispatcher = IERC20Dispatcher {
+                contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
+            };
+            let has_transferred = token_dispatcher
+                .transfer(recipient: get_caller_address(), amount: (amount * DECIMALS).into());
             if has_transferred {
                 self.fee_withdrawable.write(self.fee_withdrawable.read() - amount);
             }
         }
-        fn get_creator_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u128{
+        fn get_creator_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u128 {
             self.withdrawable_amount.entry(user).read()
         }
-        fn get_fee_withdrawable_amount(self: @ContractState) -> u128{
+        fn get_fee_withdrawable_amount(self: @ContractState) -> u128 {
             self.fee_withdrawable.read()
         }
-        fn get_total_course_sales(self: @ContractState, user: ContractAddress) -> u128{
+        fn get_total_course_sales(self: @ContractState, user: ContractAddress) -> u128 {
             self.total_course_sales.read(user)
         }
 
-         fn review(ref self: ContractState, course_identifier: u128){
+        fn review(ref self: ContractState, course_identifier: u128) {
             let caller = get_caller_address();
             assert(
                 self.user_to_course_status.entry((caller, course_identifier)).read(),
                 'not acquired',
             );
             assert(
-                !self.course_review.entry((caller, course_identifier)).read(),
-                'already reviewed',
+                !self.course_review.entry((caller, course_identifier)).read(), 'already reviewed',
             );
             self.course_review.entry((caller, course_identifier)).write(true);
-         }
-
-        fn get_review_status(self: @ContractState, course_identifier: u128, user: ContractAddress) -> bool{
-            self.course_review.entry((user, course_identifier)).read()
         }
 
-
+        fn get_review_status(
+            self: @ContractState, course_identifier: u128, user: ContractAddress,
+        ) -> bool {
+            self.course_review.entry((user, course_identifier)).read()
+        }
     }
 
     #[generate_trait]

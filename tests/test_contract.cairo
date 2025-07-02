@@ -3,11 +3,14 @@
 use attendsys::contracts::course::AttenSysCourse::{
     AttenSysCourse, IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
-use attendsys::contracts::event::AttenSysEvent::{IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait};
+use attendsys::contracts::event::AttenSysEvent::{
+    IAttenSysEventDispatcher, IAttenSysEventDispatcherTrait,
+};
+use attendsys::contracts::mock::ERC20;
 use attendsys::contracts::org::AttenSysOrg::AttenSysOrg::{
-    ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, Event,
-    InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile, OrganizationSuspended,
-    RegistrationApproved, RegistrationDeclined,
+    ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, ChangeTier,
+    Event, InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile,
+    OrganizationSuspended, RegistrationApproved, RegistrationDeclined, SetTierPrice, Tier,
 };
 use attendsys::contracts::org::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
 // use attendsys::contracts::AttenSysSponsor:: { AttenSysSponsor, IAttenSysSponsorDispatcher };
@@ -19,7 +22,6 @@ use attendsys::contracts::sponsor::AttenSysSponsor::{
     IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait, IERC20Dispatcher,
     IERC20DispatcherTrait,
 };
-use attendsys::contracts::mock::ERC20;
 use openzeppelin::token::erc20::interface::{ERC20ABIDispatcher, ERC20ABIDispatcherTrait};
 // get_caller_address,
 use snforge_std::{
@@ -1304,6 +1306,9 @@ fn test_withdraw_sponsorship_fund() {
     let org_ipfs_uri: ByteArray = "0xorgmetadata";
     dispatcher.setSponsorShipAddress(sponsor_contract_address);
     dispatcher.create_org_profile(org_name.clone(), org_ipfs_uri);
+    let tier = dispatcher.get_tier(owner_address);
+    assert(tier == Tier::Free, 'wrong tier');
+    // Remove println since Debug trait is not implemented
     stop_cheat_caller_address(org_contract_address);
 
     //approve contract to spend token
@@ -1858,3 +1863,92 @@ fn test_suspend_bootcamp_for_org_panic() {
     // non admin try to call suspenssion function
     dispatcher.suspend_org_bootcamp(owner_address, 0, true);
 }
+
+
+///// Tier price tests /////
+
+#[test]
+#[should_panic(expected: 'Not admin')]
+fn test_setting_tier_price_panic() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    // non admin try to call setting tier price function
+    dispatcher.set_tier_price(0, 100);
+}
+
+#[test]
+fn test_setting_tier_price() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    let mut spy = spy_events();
+    start_cheat_caller_address(contract_address, dispatcher.get_admin());
+    // admin calls setting tier price function to be successful
+    dispatcher.set_tier_price(0, 100);
+    let tier_price = dispatcher.get_tier_price(0);
+    assert_eq!(tier_price, 100);
+    stop_cheat_caller_address(contract_address);
+    spy
+        .assert_emitted(
+            @array![(contract_address, Event::SetTierPrice(SetTierPrice { tier: 0, price: 100 }))],
+        );
+}
+
+
+#[test]
+fn test_change_tier_for_org() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+
+    let mut spy = spy_events();
+
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+
+    let org_name_copy = org_name.clone();
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+
+    stop_cheat_caller_address(contract_address);
+    let contract_owner_address: ContractAddress = contract_address_const::<
+        'contract_owner_address',
+    >();
+
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.change_tier(owner_address, Tier::Premium);
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    Event::ChangeTier(
+                        ChangeTier { org_address: owner_address, new_tier: Tier::Premium },
+                    ),
+                ),
+            ],
+        );
+
+    let tier = dispatcher.get_tier(owner_address);
+    assert(tier == Tier::Premium, 'wrong tier');
+}
+
