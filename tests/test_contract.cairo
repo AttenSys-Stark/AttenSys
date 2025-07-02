@@ -1988,7 +1988,6 @@ fn test_remove_non_existent_bootcamp() {
 
 // Additional edge and concurrency tests can be added as needed, e.g. for expiration, pending payments, etc.
 
-
 ///// Tier price tests /////
 
 #[test]

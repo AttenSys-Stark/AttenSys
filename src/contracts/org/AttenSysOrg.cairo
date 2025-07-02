@@ -483,6 +483,7 @@ pub mod AttenSysOrg {
     }
 
     #[derive(Drop, starknet::Event)]
+
     pub struct BootcampRemoved {
         pub org_contract_address: ContractAddress,
         pub bootcamp_id: u64,
