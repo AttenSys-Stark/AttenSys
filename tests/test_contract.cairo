@@ -8,7 +8,7 @@ use attendsys::contracts::event::AttenSysEvent::{
 };
 use attendsys::contracts::mock::ERC20;
 use attendsys::contracts::org::AttenSysOrg::AttenSysOrg::{
-    ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, ChangeTier,
+    ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, BootcampRemoved, ChangeTier,
     Event, InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile,
     OrganizationSuspended, RegistrationApproved, RegistrationDeclined, SetTierPrice, Tier,
 };
@@ -1864,6 +1864,129 @@ fn test_suspend_bootcamp_for_org_panic() {
     dispatcher.suspend_org_bootcamp(owner_address, 0, true);
 }
 
+// --- REMOVE BOOTCAMP TESTS ---
+#[test]
+fn test_remove_bootcamp_success() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    let mut spy = spy_events();
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.create_org_profile("web3", "ipfs://org");
+    dispatcher.create_bootcamp(
+        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
+    );
+    let org = dispatcher.get_org_info(owner_address);
+    assert_eq!(org.number_of_all_bootcamps, 1);
+    dispatcher.remove_bootcamp(0);
+    let org = dispatcher.get_org_info(owner_address);
+    assert_eq!(org.number_of_all_bootcamps, 0);
+    spy.assert_emitted(@array![
+        (
+            contract_address,
+            Event::BootcampRemoved(
+                BootcampRemoved {
+                    org_contract_address: owner_address,
+                    bootcamp_id: 0,
+                    bootcamp_name: "bootcamp1",
+                }
+            ),
+        ),
+    ]);
+}
+
+#[test]
+#[should_panic]
+fn test_remove_bootcamp_non_owner() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let not_owner: ContractAddress = contract_address_const::<'not_owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.create_org_profile("web3", "ipfs://org");
+    dispatcher.create_bootcamp(
+        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
+    );
+    stop_cheat_caller_address(contract_address);
+    start_cheat_caller_address(contract_address, not_owner);
+    dispatcher.remove_bootcamp(0);
+}
+
+#[test]
+#[should_panic(expected: 'Has participants')]
+fn test_remove_bootcamp_with_participants() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let student_address: ContractAddress = contract_address_const::<'candidate'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.create_org_profile("web3", "ipfs://org");
+    dispatcher.create_bootcamp(
+        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
+    );
+    stop_cheat_caller_address(contract_address);
+    start_cheat_caller_address(contract_address, student_address);
+    dispatcher.register_for_bootcamp(owner_address, 0, "ipfs://student");
+    stop_cheat_caller_address(contract_address);
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.approve_registration(student_address, 0);
+    dispatcher.remove_bootcamp(0);
+}
+
+#[test]
+fn test_remove_bootcamp_state_cleanup() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.create_org_profile("web3", "ipfs://org");
+    dispatcher.create_bootcamp(
+        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
+    );
+    dispatcher.add_active_meet_link("meet", 0, false, owner_address);
+    dispatcher.remove_bootcamp(0);
+    // Should not panic, state should be cleaned
+    let org = dispatcher.get_org_info(owner_address);
+    assert_eq!(org.number_of_all_bootcamps, 0);
+}
+
+#[test]
+#[should_panic]
+fn test_remove_non_existent_bootcamp() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    dispatcher.create_org_profile("web3", "ipfs://org");
+    dispatcher.remove_bootcamp(0);
+}
+
+// Additional edge and concurrency tests can be added as needed, e.g. for expiration, pending payments, etc.
 
 ///// Tier price tests /////
 
