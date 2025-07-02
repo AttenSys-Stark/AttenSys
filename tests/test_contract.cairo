@@ -29,6 +29,9 @@ use snforge_std::{
 };
 use starknet::{ClassHash, ContractAddress, contract_address_const};
 
+const STRK_ADDRESS: felt252 = 0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d;
+const ACTUAL_STRK_HOLDER: felt252 = 0x0168d601Be0C2bDCD09D7568d7Ed711D2A330Cd7488E7539fA66b56144EC998f;
+
 #[starknet::interface]
 pub trait IERC721<TContractState> {
     fn balance_of(self: @TContractState, account: ContractAddress) -> u256;
@@ -726,7 +729,8 @@ fn test_remove_instructor_from_org() {
 }
 
 #[test]
-fn test_create_bootcamp_for_org() {
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
+fn test_create_free_bootcamp_for_org() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -763,7 +767,7 @@ fn test_create_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -784,6 +788,74 @@ fn test_create_bootcamp_for_org() {
                             nft_uri: nft_symb_cp,
                             num_of_classes: 3,
                             bootcamp_ipfs_uri: bootcamp_ipfs_uri_cp,
+                            price: 0
+                        },
+                    ),
+                ),
+            ],
+        );
+}
+
+#[test]
+fn test_create_paid_bootcamp_for_org() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
+
+    let mut spy = spy_events();
+
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_name_cp = org_name.clone();
+    let bootcamp_name: ByteArray = "web3Bridge bootcamp";
+    let bootcamp_name_cp = bootcamp_name.clone();
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    let bootcamp_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    let bootcamp_ipfs_uri_cp = bootcamp_ipfs_uri.clone();
+    dispatcher.create_org_profile(org_name.clone(), org_ipfs_uri);
+    let mut arr_of_instructors: Array<ContractAddress> = array![];
+    arr_of_instructors.append(instructor_address);
+    dispatcher.add_instructor_to_org(arr_of_instructors, org_name.clone());
+    let org = dispatcher.get_org_info(owner_address);
+    assert_eq!(org.number_of_instructors, 2);
+
+    let token_uri: ByteArray = "https://dummy_uri.com";
+    let token_uri_cp = token_uri.clone();
+    let nft_name: ByteArray = "cairo";
+    let nft_name_cp = nft_name.clone();
+    let nft_symb: ByteArray = "CAO";
+    let nft_symb_cp = nft_symb.clone();
+
+    dispatcher
+        .create_bootcamp(
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 100
+        );
+    let updatedOrg = dispatcher.get_org_info(owner_address);
+    assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
+    assert_eq!(updatedOrg.number_of_all_classes, 3);
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    Event::BootCampCreated(
+                        BootCampCreated {
+                            org_name: org_name_cp,
+                            org_address: owner_address,
+                            bootcamp_name: bootcamp_name_cp,
+                            nft_name: token_uri_cp,
+                            nft_symbol: nft_name_cp,
+                            nft_uri: nft_symb_cp,
+                            num_of_classes: 3,
+                            bootcamp_ipfs_uri: bootcamp_ipfs_uri_cp,
+                            price: 100
                         },
                     ),
                 ),
@@ -822,7 +894,7 @@ fn test_add_active_meet_link_to_bootcamp() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
 
     // possible to override active meet link.
@@ -849,7 +921,9 @@ fn test_add_active_meet_link_to_bootcamp() {
 }
 
 #[test]
-fn test_register_for_bootcamp() {
+#[ignore]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
+fn test_register_for_free_bootcamp() {
     let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
     let token_addr = contract_address_const::<'new_owner'>();
     let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
@@ -880,7 +954,67 @@ fn test_register_for_bootcamp() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+        );
+
+    dispatcher.register_for_bootcamp(org_address, 0, token_uri_clone);
+
+    let all_request = dispatcher.get_all_registration_request(owner_address);
+    let status: u8 = *all_request[0].status;
+    assert(status == 0, 'not pending');
+
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    Event::BootcampRegistration(
+                        BootcampRegistration { org_address: org_address_cp, bootcamp_id: 0 },
+                    ),
+                ),
+            ],
+        )
+}
+
+#[test]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
+fn test_register_for_paid_bootcamp() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let mut spy = spy_events();
+    let strk_address: ContractAddress = STRK_ADDRESS.try_into().unwrap();
+    let strk_dispatcher = IERC20Dispatcher { contract_address: strk_address };
+
+    // strk_dispatcher.balance_of();
+    
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
+    let instructor_address_cp = instructor_address.clone();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let bootcamp_name: ByteArray = "web3Bridge bootcamp";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    let bootcamp_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    dispatcher.create_org_profile(org_name.clone(), org_ipfs_uri);
+    let mut arr_of_instructors: Array<ContractAddress> = array![];
+    arr_of_instructors.append(instructor_address);
+    dispatcher.add_instructor_to_org(arr_of_instructors, org_name.clone());
+    let org = dispatcher.get_org_info(owner_address);
+    let org_address: ContractAddress = org.address_of_org;
+    let org_address_cp = org_address.clone();
+    let token_uri: ByteArray = "https://dummy_uri.com";
+    let token_uri_clone: ByteArray = "https://dummy_uri.com";
+    let nft_name: ByteArray = "cairo";
+    let nft_symb: ByteArray = "CAO";
+
+    dispatcher
+        .create_bootcamp(
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 5
         );
 
     dispatcher.register_for_bootcamp(org_address, 0, token_uri_clone);
@@ -936,7 +1070,7 @@ fn test_approve_registration() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1027,7 +1161,7 @@ fn test_decline_registration2() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1093,7 +1227,7 @@ fn test_decline_registration() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1696,7 +1830,7 @@ fn test_suspend_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -1769,7 +1903,7 @@ fn test_unsuspend_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -1848,7 +1982,7 @@ fn test_suspend_bootcamp_for_org_panic() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri,
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);

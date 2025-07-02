@@ -403,6 +403,7 @@ pub mod AttenSysOrg {
         pub nft_uri: ByteArray,
         pub num_of_classes: u256,
         pub bootcamp_ipfs_uri: ByteArray,
+        pub price: u128,    
     }
 
     #[derive(Drop, starknet::Event)]
@@ -783,6 +784,7 @@ pub mod AttenSysOrg {
                             nft_uri: nft_uri,
                             num_of_classes: num_of_class_to_create,
                             bootcamp_ipfs_uri: bootcamp_ipfs_uri,
+                            price: price_,
                         },
                     );
                 //create classes
@@ -877,26 +879,28 @@ pub mod AttenSysOrg {
                         let mut specific_bootcamp_storage = bootcamp.at(i);
                         let mut specific_bootcamp = specific_bootcamp_storage.read();
                         let bootcamp_price = specific_bootcamp.price;
-                        let student_address = student.address_of_student;
-                        let contract_address = get_contract_address();
-                        let strk_bootcamp_price = self.calculate_bootcamp_price_in_strk(bootcamp_price).into();
-
-                        const strk_address: ContractAddress = STRK_ADDRESS.try_into().unwrap();
-                        let strk_dispatcher = IERC20Dispatcher { contract_address: strk_address };
-
-                        let transfer = strk_dispatcher.transfer_from(student_address, contract_address, strk_bootcamp_price.into());
-
-                        assert(transfer, 'Bootcamp Payment Failure');
-
-                        specific_bootcamp.bootcamp_funds = specific_bootcamp.bootcamp_funds + strk_bootcamp_price;
-
-                        specific_bootcamp_storage.write(specific_bootcamp);
 
                         student
-                            .num_of_bootcamps_registered_for = student
-                            .num_of_bootcamps_registered_for
-                            + 1;
+                            .num_of_bootcamps_registered_for += 1;
                         student.student_details_uri = student_uri.clone();
+
+                        if bootcamp_price > 0 {
+                            let student_address = student.address_of_student;
+                            let contract_address = get_contract_address();
+                            let strk_bootcamp_price = self.calculate_bootcamp_price_in_strk(bootcamp_price);
+                            let u256_strk_bootcamp_price: u256 = strk_bootcamp_price.try_into().unwrap();
+    
+                            const strk_address: ContractAddress = STRK_ADDRESS.try_into().unwrap();
+                            let strk_dispatcher = IERC20Dispatcher { contract_address: strk_address };
+    
+                            let transfer = strk_dispatcher.transfer_from(student_address, contract_address, u256_strk_bootcamp_price);
+    
+                            assert(transfer, 'Bootcamp Payment Failure');
+                            specific_bootcamp.bootcamp_funds = specific_bootcamp.bootcamp_funds + strk_bootcamp_price;
+                        }
+
+
+                        specific_bootcamp_storage.write(specific_bootcamp);
                         self.student_info.entry(caller).write(student);
                         self
                             .org_to_requests
