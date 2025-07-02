@@ -5,7 +5,7 @@ pub mod contracts {
     pub mod event {
         pub mod AttenSysEvent;
     }
-    pub mod attensysnft{
+    pub mod attensysnft {
         pub mod AttenSysNft;
     }
     pub mod org {

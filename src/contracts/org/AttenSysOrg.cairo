@@ -134,6 +134,12 @@ pub trait IAttenSysOrg<TContractState> {
         self: @TContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress,
     ) -> bool;
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
+    fn set_tier_price(ref self: TContractState, tier: u256, price: u256);
+    fn change_tier(
+        ref self: TContractState, org_address: ContractAddress, new_tier: AttenSysOrg::Tier,
+    );
+    fn get_tier_price(self: @TContractState, tier: u256) -> u256;
+    fn get_tier(self: @TContractState, org: ContractAddress) -> AttenSysOrg::Tier;
 }
 
 // Events
@@ -223,6 +229,8 @@ pub mod AttenSysOrg {
         student_address_to_specific_bootcamp: Map<
             (ContractAddress, ContractAddress), Vec<RegisteredBootcamp>,
         >,
+        //maps tier to price
+        tier_price: Map<u256, u256>,
         //maps org to bootcamp to classID
         bootcamp_class_data_id: Map<(ContractAddress, u64), Vec<u64>>,
         //saves all certifed student for each bootcamp
@@ -244,6 +252,16 @@ pub mod AttenSysOrg {
         pub number_of_all_bootcamps: u256,
         pub org_ipfs_uri: ByteArray,
         pub total_sponsorship_fund: u256,
+        pub tier: Tier,
+    }
+
+
+    #[allow(starknet::store_no_default_variant)]
+    #[derive(Drop, Serde, starknet::Store, Copy, PartialEq)]
+    pub enum Tier {
+        Free,
+        Premium,
+        PremiumPlus,
     }
 
     #[derive(Drop, Serde, starknet::Store)]
@@ -326,6 +344,8 @@ pub mod AttenSysOrg {
         OrganizationSuspended: OrganizationSuspended,
         BootCampSuspended: BootCampSuspended,
         BootcampRemoved: BootcampRemoved,
+        SetTierPrice: SetTierPrice,
+        ChangeTier: ChangeTier,
         #[flat]
         OwnableEvent: OwnableComponent::Event,
         #[flat]
@@ -469,6 +489,18 @@ pub mod AttenSysOrg {
         pub bootcamp_name: ByteArray,
     }
 
+    #[derive(Drop, starknet::Event)]
+    pub struct SetTierPrice {
+        pub tier: u256,
+        pub price: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct ChangeTier {
+        pub org_address: ContractAddress,
+        pub new_tier: Tier,
+    }
+
     #[constructor]
     fn constructor(
         ref self: ContractState,
@@ -507,6 +539,7 @@ pub mod AttenSysOrg {
                     number_of_all_bootcamps: 0,
                     org_ipfs_uri: org_ipfs_uri.clone(),
                     total_sponsorship_fund: 0,
+                    tier: Tier::Free,
                 };
 
                 let uri = org_ipfs_uri.clone();
@@ -525,6 +558,7 @@ pub mod AttenSysOrg {
                             number_of_all_bootcamps: 0,
                             org_ipfs_uri: org_ipfs_uri,
                             total_sponsorship_fund: 0,
+                            tier: Tier::Free,
                         },
                     );
                 let orginization_name = org_name.clone();
@@ -1567,6 +1601,32 @@ pub mod AttenSysOrg {
 
             // Replace the class hash upgrading the contract
             self.upgradeable.upgrade(new_class_hash);
+        }
+
+        fn set_tier_price(ref self: ContractState, tier: u256, price: u256) {
+            // This function can only be called by the owner
+            only_admin(ref self);
+            assert(tier == 0 || tier == 1 || tier == 2, 'Invalid tier');
+            self.tier_price.entry(tier).write(price);
+            self.emit(SetTierPrice { tier, price });
+        }
+
+        fn get_tier_price(self: @ContractState, tier: u256) -> u256 {
+            self.tier_price.entry(tier).read()
+        }
+        fn change_tier(ref self: ContractState, org_address: ContractAddress, new_tier: Tier) {
+            assert(org_address != self.zero_address(), 'zero address not allowed');
+            assert(org_address == get_caller_address(), 'unauthorized caller');
+            let mut org_info: Organization = self.organization_info.entry(org_address).read();
+            assert(org_info.tier != new_tier, 'same tier');
+            org_info.tier = new_tier;
+            self.organization_info.entry(org_address).write(org_info);
+            self.emit(ChangeTier { org_address, new_tier });
+        }
+
+        fn get_tier(self: @ContractState, org: ContractAddress) -> Tier {
+            let org_info: Organization = self.organization_info.entry(org).read();
+            org_info.tier
         }
     }
 
