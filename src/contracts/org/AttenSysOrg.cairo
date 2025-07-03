@@ -289,13 +289,6 @@ pub mod AttenSysOrg {
         WITHDRAWN,
     }
 
-    #[derive(Copy, Drop, Serde, PartialEq, starknet::Store)]
-    pub enum BootCampFundsStatus {
-        #[default]
-        NOT_WITHDRAWN,
-        WITHDRAWN,
-    }
-
     #[derive(Drop, Serde, starknet::Store)]
     pub struct Bootcamp {
         pub bootcamp_id: u64,
