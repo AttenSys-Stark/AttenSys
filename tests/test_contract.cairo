@@ -8,8 +8,8 @@ use attendsys::contracts::event::AttenSysEvent::{
 };
 use attendsys::contracts::mock::ERC20;
 use attendsys::contracts::org::AttenSysOrg::AttenSysOrg::{
-    ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, BootcampRemoved, ChangeTier,
-    Event, InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile,
+    ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, BootcampRemoved,
+    ChangeTier, Event, InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile,
     OrganizationSuspended, RegistrationApproved, RegistrationDeclined, SetTierPrice, Tier,
 };
 use attendsys::contracts::org::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
@@ -32,7 +32,8 @@ use snforge_std::{
 use starknet::{ClassHash, ContractAddress, contract_address_const};
 
 const STRK_ADDRESS: felt252 = 0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d;
-const ACTUAL_STRK_HOLDER: felt252 = 0x0168d601Be0C2bDCD09D7568d7Ed711D2A330Cd7488E7539fA66b56144EC998f;
+const ACTUAL_STRK_HOLDER: felt252 =
+    0x0168d601Be0C2bDCD09D7568d7Ed711D2A330Cd7488E7539fA66b56144EC998f;
 
 #[starknet::interface]
 pub trait IERC721<TContractState> {
@@ -769,7 +770,7 @@ fn test_create_free_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -790,7 +791,7 @@ fn test_create_free_bootcamp_for_org() {
                             nft_uri: nft_symb_cp,
                             num_of_classes: 3,
                             bootcamp_ipfs_uri: bootcamp_ipfs_uri_cp,
-                            price: 0
+                            price: 0,
                         },
                     ),
                 ),
@@ -836,7 +837,7 @@ fn test_create_paid_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 100
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 100,
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -857,7 +858,7 @@ fn test_create_paid_bootcamp_for_org() {
                             nft_uri: nft_symb_cp,
                             num_of_classes: 3,
                             bootcamp_ipfs_uri: bootcamp_ipfs_uri_cp,
-                            price: 100
+                            price: 100,
                         },
                     ),
                 ),
@@ -896,7 +897,7 @@ fn test_add_active_meet_link_to_bootcamp() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
 
     // possible to override active meet link.
@@ -956,7 +957,7 @@ fn test_register_for_free_bootcamp() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
 
     dispatcher.register_for_bootcamp(org_address, 0, token_uri_clone);
@@ -991,7 +992,7 @@ fn test_register_for_paid_bootcamp() {
     let mut spy = spy_events();
     let strk_address: ContractAddress = STRK_ADDRESS.try_into().unwrap();
     let student: felt252 = 0x05Bf9E38B116B37A8249a4cd041D402903a5E8a67C1a99d2D336ac7bd8B4034e;
-    
+
     let owner_address: ContractAddress = contract_address_const::<'owner'>();
     let instructor_address: ContractAddress = contract_address_const::<'instructor'>();
     let instructor_address_cp = instructor_address.clone();
@@ -1015,7 +1016,7 @@ fn test_register_for_paid_bootcamp() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 10
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 10,
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1030,7 +1031,7 @@ fn test_register_for_paid_bootcamp() {
     stop_cheat_caller_address(strk_address);
 
     start_cheat_caller_address(contract_address, student.try_into().unwrap());
-    
+
     println!("I got here, just before payment");
     dispatcher.register_for_bootcamp(org_address, 0, token_uri_clone);
     println!("I got here, just after payment");
@@ -1038,7 +1039,7 @@ fn test_register_for_paid_bootcamp() {
     println!("contract balance after purchase: {}", second_balance);
 
     stop_cheat_caller_address(contract_address);
-    
+
     start_cheat_caller_address(contract_address, owner_address);
     let all_request = dispatcher.get_all_registration_request(owner_address);
     let status: u8 = *all_request[0].status;
@@ -1090,7 +1091,7 @@ fn test_approve_registration() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1186,7 +1187,7 @@ fn test_withdraw_bootcamp_funds() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 10
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 10,
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1247,7 +1248,7 @@ fn test_withdraw_bootcamp_funds() {
     let get_cert_stat_student2 = dispatcher
         .get_bootcamp_certification_status(owner_address, 0, student2_address);
     assert(get_cert_stat_student2, 'incorrect status');
-    
+
     let bootcamps = dispatcher.get_all_org_bootcamps(owner_address);
     let the_bootcamp = bootcamps[0];
     let bootcamp_funds = the_bootcamp.bootcamp_funds;
@@ -1269,7 +1270,6 @@ fn test_withdraw_bootcamp_funds() {
                 ),
             ],
         );
-
 }
 
 
@@ -1307,7 +1307,7 @@ fn test_decline_registration2() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1373,7 +1373,7 @@ fn test_decline_registration() {
     let nft_symb: ByteArray = "CAO";
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
     stop_cheat_caller_address(contract_address);
 
@@ -1979,7 +1979,7 @@ fn test_suspend_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -2052,7 +2052,7 @@ fn test_unsuspend_bootcamp_for_org() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -2131,7 +2131,7 @@ fn test_suspend_bootcamp_for_org_panic() {
 
     dispatcher
         .create_bootcamp(
-            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0
+            org_name, bootcamp_name, token_uri, nft_name, nft_symb, 3, bootcamp_ipfs_uri, 0,
         );
     let updatedOrg = dispatcher.get_org_info(owner_address);
     assert_eq!(updatedOrg.number_of_all_bootcamps, 1);
@@ -2156,26 +2156,28 @@ fn test_remove_bootcamp_success() {
     let mut spy = spy_events();
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
-    dispatcher.create_bootcamp(
-        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
-    );
+    dispatcher
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
     let org = dispatcher.get_org_info(owner_address);
     assert_eq!(org.number_of_all_bootcamps, 1);
     dispatcher.remove_bootcamp(0);
     let org = dispatcher.get_org_info(owner_address);
     assert_eq!(org.number_of_all_bootcamps, 0);
-    spy.assert_emitted(@array![
-        (
-            contract_address,
-            Event::BootcampRemoved(
-                BootcampRemoved {
-                    org_contract_address: owner_address,
-                    bootcamp_id: 0,
-                    bootcamp_name: "bootcamp1",
-                }
-            ),
-        ),
-    ]);
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    Event::BootcampRemoved(
+                        BootcampRemoved {
+                            org_contract_address: owner_address,
+                            bootcamp_id: 0,
+                            bootcamp_name: "bootcamp1",
+                        },
+                    ),
+                ),
+            ],
+        );
 }
 
 #[test]
@@ -2192,9 +2194,8 @@ fn test_remove_bootcamp_non_owner() {
     let dispatcher = IAttenSysOrgDispatcher { contract_address };
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
-    dispatcher.create_bootcamp(
-        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
-    );
+    dispatcher
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
     stop_cheat_caller_address(contract_address);
     start_cheat_caller_address(contract_address, not_owner);
     dispatcher.remove_bootcamp(0);
@@ -2214,9 +2215,8 @@ fn test_remove_bootcamp_with_participants() {
     let dispatcher = IAttenSysOrgDispatcher { contract_address };
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
-    dispatcher.create_bootcamp(
-        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
-    );
+    dispatcher
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
     stop_cheat_caller_address(contract_address);
     start_cheat_caller_address(contract_address, student_address);
     dispatcher.register_for_bootcamp(owner_address, 0, "ipfs://student");
@@ -2238,9 +2238,8 @@ fn test_remove_bootcamp_state_cleanup() {
     let dispatcher = IAttenSysOrgDispatcher { contract_address };
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
-    dispatcher.create_bootcamp(
-        "web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1"
-    );
+    dispatcher
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
     dispatcher.add_active_meet_link("meet", 0, false, owner_address);
     dispatcher.remove_bootcamp(0);
     // Should not panic, state should be cleaned
@@ -2264,7 +2263,8 @@ fn test_remove_non_existent_bootcamp() {
     dispatcher.remove_bootcamp(0);
 }
 
-// Additional edge and concurrency tests can be added as needed, e.g. for expiration, pending payments, etc.
+// Additional edge and concurrency tests can be added as needed, e.g. for expiration, pending
+// payments, etc.
 
 ///// Tier price tests /////
 
