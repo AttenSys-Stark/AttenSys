@@ -2157,7 +2157,7 @@ fn test_remove_bootcamp_success() {
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
     dispatcher
-        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1", 0);
     let org = dispatcher.get_org_info(owner_address);
     assert_eq!(org.number_of_all_bootcamps, 1);
     dispatcher.remove_bootcamp(0);
@@ -2195,7 +2195,7 @@ fn test_remove_bootcamp_non_owner() {
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
     dispatcher
-        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1", 0);
     stop_cheat_caller_address(contract_address);
     start_cheat_caller_address(contract_address, not_owner);
     dispatcher.remove_bootcamp(0);
@@ -2216,7 +2216,7 @@ fn test_remove_bootcamp_with_participants() {
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
     dispatcher
-        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1", 0);
     stop_cheat_caller_address(contract_address);
     start_cheat_caller_address(contract_address, student_address);
     dispatcher.register_for_bootcamp(owner_address, 0, "ipfs://student");
@@ -2239,7 +2239,7 @@ fn test_remove_bootcamp_state_cleanup() {
     start_cheat_caller_address(contract_address, owner_address);
     dispatcher.create_org_profile("web3", "ipfs://org");
     dispatcher
-        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1");
+        .create_bootcamp("web3", "bootcamp1", "nft_uri", "NFT", "NFTSYM", 1, "ipfs://bootcamp1", 0);
     dispatcher.add_active_meet_link("meet", 0, false, owner_address);
     dispatcher.remove_bootcamp(0);
     // Should not panic, state should be cleaned
