@@ -16,6 +16,7 @@ pub trait IAttenSysOrg<TContractState> {
         nft_uri: ByteArray,
         num_of_class_to_create: u256,
         bootcamp_ipfs_uri: ByteArray,
+        price_: u128,
     );
     fn add_active_meet_link(
         ref self: TContractState,
@@ -59,13 +60,12 @@ pub trait IAttenSysOrg<TContractState> {
         ref self: TContractState, organization: ContractAddress, uri: ByteArray, amt: u256,
     );
     fn withdraw_sponsorship_fund(ref self: TContractState, amt: u256);
+    fn withdraw_bootcamp_funds(ref self: TContractState, org_: ContractAddress, bootcamp_id: u64);
     fn suspend_organization(ref self: TContractState, org_: ContractAddress, suspend: bool);
     fn suspend_org_bootcamp(
         ref self: TContractState, org_: ContractAddress, bootcamp_id_: u64, suspend: bool,
     );
-    fn remove_bootcamp(
-        ref self: TContractState, bootcamp_id: u64,
-    );
+    fn remove_bootcamp(ref self: TContractState, bootcamp_id: u64);
     fn get_bootcamp_active_meet_link(
         self: @TContractState, org_: ContractAddress, bootcamp_id: u64,
     ) -> ByteArray;
@@ -133,6 +133,8 @@ pub trait IAttenSysOrg<TContractState> {
     fn get_bootcamp_certification_status(
         self: @TContractState, org: ContractAddress, bootcamp_id: u64, student: ContractAddress,
     ) -> bool;
+    fn get_price_of_strk_usd(self: @TContractState) -> u128;
+    fn get_strk_of_usd(self: @TContractState, usd_price: u128) -> u128;
     fn upgrade(ref self: TContractState, new_class_hash: ClassHash);
     fn set_tier_price(ref self: TContractState, tier: u256, price: u256);
     fn change_tier(
@@ -156,10 +158,16 @@ pub mod AttenSysOrg {
         Vec, VecTrait,
     };
     use core::starknet::syscalls::deploy_syscall;
-    use core::starknet::{ClassHash, ContractAddress, contract_address_const, get_caller_address};
+    use core::starknet::{
+        ClassHash, ContractAddress, contract_address_const, get_caller_address,
+        get_contract_address,
+    };
     use openzeppelin::access::ownable::OwnableComponent;
+    use openzeppelin::token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
+    use pragma_lib::abi::{IPragmaABIDispatcher, IPragmaABIDispatcherTrait};
+    use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
     use starknet::event::EventEmitter;
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -172,6 +180,14 @@ pub mod AttenSysOrg {
 
     /// Upgradeable
     impl UpgradeableInternalImpl = UpgradeableComponent::InternalImpl<ContractState>;
+
+    // Pragma Oracle address on Sepolia
+    const PRAGMA_ORACLE_ADDRESS: felt252 =
+        0x36031daa264c24520b11d93af622c848b2499b66b41d611bac95e13cfca131a;
+    const KEY: felt252 = 6004514686061859652; // STRK/USD 
+    const ORACLE_PRECISION: u128 = 100_000_000;
+    const STRK_ADDRESS: felt252 =
+        0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d;
 
     #[storage]
     struct Storage {
@@ -223,6 +239,8 @@ pub mod AttenSysOrg {
         org_suspended: Map<ContractAddress, bool>,
         // map org => bootcamp => suspension status
         bootcamp_suspended: Map<ContractAddress, Map<u64, bool>>,
+        // map org => bootcamp => completion_status
+        bootcamp_ended: Map<ContractAddress, Map<u64, bool>>,
         //maps student address to vec of bootcamps
         student_address_to_bootcamps: Map<ContractAddress, Vec<RegisteredBootcamp>>,
         //maps student address to org address to specific bootcamp
@@ -264,6 +282,13 @@ pub mod AttenSysOrg {
         PremiumPlus,
     }
 
+    #[derive(Copy, Drop, Serde, PartialEq, starknet::Store)]
+    pub enum BootCampFundsStatus {
+        #[default]
+        NOT_WITHDRAWN,
+        WITHDRAWN,
+    }
+
     #[derive(Drop, Serde, starknet::Store)]
     pub struct Bootcamp {
         pub bootcamp_id: u64,
@@ -276,6 +301,9 @@ pub mod AttenSysOrg {
         pub nft_address: ContractAddress,
         pub bootcamp_ipfs_uri: ByteArray,
         pub active_meet_link: ByteArray,
+        pub price: u128,
+        pub bootcamp_funds: u128,
+        pub bootcamp_funds_status: BootCampFundsStatus,
     }
 
     #[derive(Drop, Serde, starknet::Store)]
@@ -346,6 +374,7 @@ pub mod AttenSysOrg {
         BootcampRemoved: BootcampRemoved,
         SetTierPrice: SetTierPrice,
         ChangeTier: ChangeTier,
+        BootCampPriceUpdated: BootCampPriceUpdated,
         #[flat]
         OwnableEvent: OwnableComponent::Event,
         #[flat]
@@ -400,6 +429,7 @@ pub mod AttenSysOrg {
         pub nft_uri: ByteArray,
         pub num_of_classes: u256,
         pub bootcamp_ipfs_uri: ByteArray,
+        pub price: u128,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -483,7 +513,6 @@ pub mod AttenSysOrg {
     }
 
     #[derive(Drop, starknet::Event)]
-
     pub struct BootcampRemoved {
         pub org_contract_address: ContractAddress,
         pub bootcamp_id: u64,
@@ -500,6 +529,13 @@ pub mod AttenSysOrg {
     pub struct ChangeTier {
         pub org_address: ContractAddress,
         pub new_tier: Tier,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct BootCampPriceUpdated {
+        pub bootcamp_id: u64,
+        pub bootcamp_name: ByteArray,
+        pub new_price: u128,
     }
 
     #[constructor]
@@ -718,6 +754,7 @@ pub mod AttenSysOrg {
             nft_uri: ByteArray,
             num_of_class_to_create: u256,
             bootcamp_ipfs_uri: ByteArray,
+            price_: u128,
         ) {
             let caller = get_caller_address();
             let status: bool = self.created_status.entry(caller).read();
@@ -749,6 +786,9 @@ pub mod AttenSysOrg {
                     nft_address: deployed_contract_address,
                     bootcamp_ipfs_uri: bootcamp_ipfs_uri.clone(),
                     active_meet_link: "",
+                    price: price_,
+                    bootcamp_funds: 0,
+                    bootcamp_funds_status: BootCampFundsStatus::NOT_WITHDRAWN,
                 };
 
                 //append into the array of bootcamps associated to an organization
@@ -768,6 +808,9 @@ pub mod AttenSysOrg {
                             nft_address: deployed_contract_address,
                             bootcamp_ipfs_uri: bootcamp_ipfs_uri.clone(),
                             active_meet_link: "",
+                            price: price_,
+                            bootcamp_funds: 0,
+                            bootcamp_funds_status: BootCampFundsStatus::NOT_WITHDRAWN,
                         },
                     );
 
@@ -788,6 +831,7 @@ pub mod AttenSysOrg {
                             nft_uri: nft_uri,
                             num_of_classes: num_of_class_to_create,
                             bootcamp_ipfs_uri: bootcamp_ipfs_uri,
+                            price: price_,
                         },
                     );
                 //create classes
@@ -870,6 +914,8 @@ pub mod AttenSysOrg {
             let status: bool = self.created_status.entry(org_).read();
             // check org is created
             if status {
+                // let bootcamp: Bootcamp =
+                // self.org_to_bootcamps.entry(org_).at(bootcamp_id).read();
                 assert(
                     !self.bootcamp_suspended.entry(org_).entry(bootcamp_id).read(),
                     'Bootcamp suspended',
@@ -878,11 +924,38 @@ pub mod AttenSysOrg {
                 for i in 0..bootcamp.len() {
                     if i == bootcamp_id {
                         let mut student: Student = self.student_info.entry(caller).read();
-                        student
-                            .num_of_bootcamps_registered_for = student
-                            .num_of_bootcamps_registered_for
-                            + 1;
+                        let mut specific_bootcamp_storage = bootcamp.at(i);
+                        let mut specific_bootcamp = specific_bootcamp_storage.read();
+                        let bootcamp_price = specific_bootcamp.price;
+
+                        student.num_of_bootcamps_registered_for += 1;
                         student.student_details_uri = student_uri.clone();
+
+                        if bootcamp_price > 0 {
+                            let student_address = student.address_of_student;
+                            let contract_address = get_contract_address();
+                            let strk_bootcamp_price = self
+                                .calculate_bootcamp_price_in_strk(bootcamp_price);
+                            let u256_strk_bootcamp_price: u256 = strk_bootcamp_price
+                                .try_into()
+                                .unwrap();
+
+                            const strk_address: ContractAddress = STRK_ADDRESS.try_into().unwrap();
+                            let strk_dispatcher = IERC20Dispatcher {
+                                contract_address: strk_address,
+                            };
+
+                            let transfer = strk_dispatcher
+                                .transfer_from(
+                                    student_address, contract_address, u256_strk_bootcamp_price,
+                                );
+
+                            assert(transfer, 'Bootcamp Payment Failure');
+                            specific_bootcamp.bootcamp_funds = specific_bootcamp.bootcamp_funds
+                                + strk_bootcamp_price;
+                        }
+
+                        specific_bootcamp_storage.write(specific_bootcamp);
                         self.student_info.entry(caller).write(student);
                         self
                             .org_to_requests
@@ -1181,6 +1254,32 @@ pub mod AttenSysOrg {
             }
         }
 
+        fn withdraw_bootcamp_funds(
+            ref self: ContractState, org_: ContractAddress, bootcamp_id: u64,
+        ) {
+            // Assert here that the caller is the organization
+            let caller = get_caller_address();
+            let status: bool = self.created_status.entry(caller).read();
+            let mut bootcamp: Bootcamp = self.org_to_bootcamps.entry(org_).at(bootcamp_id).read();
+            let bootcamp_funds = bootcamp.bootcamp_funds;
+            assert(
+                bootcamp.bootcamp_funds_status != BootCampFundsStatus::WITHDRAWN,
+                'Already Withdrawn',
+            );
+            assert(self.bootcamp_ended.entry(org_).entry(bootcamp_id).read(), 'Bootcamp not ended');
+            let attensys_org_contract = get_contract_address();
+            let strk_address: ContractAddress = STRK_ADDRESS.try_into().unwrap();
+            let strk_dispatcher = IERC20Dispatcher { contract_address: strk_address };
+
+            let transfer = strk_dispatcher.transfer(org_, bootcamp_funds.into());
+
+            assert(transfer, 'Withdrawal Failed');
+
+            bootcamp.bootcamp_funds = 0;
+
+            self.org_to_bootcamps.entry(org_).at(bootcamp_id).write(bootcamp);
+        }
+
         fn suspend_organization(ref self: ContractState, org_: ContractAddress, suspend: bool) {
             only_admin(ref self);
             let org: Organization = self.organization_info.entry(org_).read();
@@ -1233,29 +1332,32 @@ pub mod AttenSysOrg {
         fn remove_bootcamp(ref self: ContractState, bootcamp_id: u64) {
             let caller = get_caller_address();
             let status: bool = self.created_status.entry(caller).read();
-            
+
             // Check if caller is an organization
             assert(status, 'Not an organization');
-            
+
             // Check if organization is not suspended
             assert(!self.org_suspended.entry(caller).read(), 'Organization suspended');
-            
+
             // Check if bootcamp exists
             let bootcamp_count = self.org_to_bootcamps.entry(caller).len();
             assert(bootcamp_id < bootcamp_count, 'Bootcamp does not exist');
-            
+
             // Get bootcamp info
             let bootcamp: Bootcamp = self.org_to_bootcamps.entry(caller).at(bootcamp_id).read();
-            
+
             // Check if bootcamp is not suspended
-            assert(!self.bootcamp_suspended.entry(caller).entry(bootcamp_id).read(), 'Bootcamp suspended');
-            
+            assert(
+                !self.bootcamp_suspended.entry(caller).entry(bootcamp_id).read(),
+                'Bootcamp suspended',
+            );
+
             // Check if bootcamp has no participants
             assert(bootcamp.number_of_students == 0, 'Has participants');
-            
+
             // Store bootcamp name for event emission
             let bootcamp_name = bootcamp.bootcamp_name;
-            
+
             // Remove bootcamp from org_to_bootcamps by replacing with last element and popping
             let last_index = bootcamp_count - 1;
             if bootcamp_id != last_index {
@@ -1263,59 +1365,67 @@ pub mod AttenSysOrg {
                 self.org_to_bootcamps.entry(caller).at(bootcamp_id).write(last_bootcamp);
             }
             let _ = self.org_to_bootcamps.entry(caller).pop();
-            
+
             // Remove from all_bootcamps_created
             let all_bootcamps_len = self.all_bootcamps_created.len();
             for i in 0..all_bootcamps_len {
                 let current_bootcamp = self.all_bootcamps_created.at(i).read();
-                if current_bootcamp.address_of_org == caller && current_bootcamp.bootcamp_id == bootcamp_id {
+                if current_bootcamp.address_of_org == caller
+                    && current_bootcamp.bootcamp_id == bootcamp_id {
                     // Replace with last element and pop
                     if i != all_bootcamps_len - 1 {
-                        let last_bootcamp = self.all_bootcamps_created.at(all_bootcamps_len - 1).read();
+                        let last_bootcamp = self
+                            .all_bootcamps_created
+                            .at(all_bootcamps_len - 1)
+                            .read();
                         self.all_bootcamps_created.at(i).write(last_bootcamp);
                     }
                     let _ = self.all_bootcamps_created.pop();
                     break;
                 }
             }
-            
+
             // Clean up related state
             // Remove uploaded videos by clearing the vector
             let videos_len = self.org_to_uploaded_videos_link.entry((caller, bootcamp_id)).len();
             for _ in 0..videos_len {
                 let _ = self.org_to_uploaded_videos_link.entry((caller, bootcamp_id)).pop();
             }
-            
+
             // Remove bootcamp suspension status
             self.bootcamp_suspended.entry(caller).entry(bootcamp_id).write(false);
-            
+
             // Remove bootcamp class data by clearing the vector
             let class_data_len = self.bootcamp_class_data_id.entry((caller, bootcamp_id)).len();
             for _ in 0..class_data_len {
                 let _ = self.bootcamp_class_data_id.entry((caller, bootcamp_id)).pop();
             }
-            
+
             // Remove certified students for this bootcamp by clearing the vector
-            let certified_students_len = self.certified_students_for_bootcamp.entry((caller, bootcamp_id)).len();
+            let certified_students_len = self
+                .certified_students_for_bootcamp
+                .entry((caller, bootcamp_id))
+                .len();
             for _ in 0..certified_students_len {
                 let _ = self.certified_students_for_bootcamp.entry((caller, bootcamp_id)).pop();
             }
-            
+
             // Update organization bootcamp count
             let mut org = self.organization_info.entry(caller).read();
             org.number_of_all_bootcamps -= 1;
             self.organization_info.entry(caller).write(org);
-            
+
             // Emit event
-            self.emit(
-                BootcampRemoved {
-                    org_contract_address: caller,
-                    bootcamp_id: bootcamp_id,
-                    bootcamp_name: bootcamp_name,
-                },
-            );
+            self
+                .emit(
+                    BootcampRemoved {
+                        org_contract_address: caller,
+                        bootcamp_id: bootcamp_id,
+                        bootcamp_name: bootcamp_name,
+                    },
+                );
         }
-        
+
         // read functions
         fn get_all_org_bootcamps(self: @ContractState, org_: ContractAddress) -> Array<Bootcamp> {
             let mut arr_of_all_created_bootcamps = array![];
@@ -1629,6 +1739,14 @@ pub mod AttenSysOrg {
             let org_info: Organization = self.organization_info.entry(org).read();
             org_info.tier
         }
+
+        fn get_price_of_strk_usd(self: @ContractState) -> u128 {
+            self.internal_get_price_of_strk_usd()
+        }
+
+        fn get_strk_of_usd(self: @ContractState, usd_price: u128) -> u128 {
+            self.calculate_bootcamp_price_in_strk(usd_price)
+        }
     }
 
     fn create_a_class(
@@ -1705,7 +1823,6 @@ pub mod AttenSysOrg {
         }
     }
 
-
     fn get_all_registration_request(self: @ContractState, org_: ContractAddress) -> Array<Student> {
         let mut arr_of_request = array![];
 
@@ -1725,6 +1842,33 @@ pub mod AttenSysOrg {
     impl InternalFunctions of InternalFunctionsTrait {
         fn zero_address(self: @ContractState) -> ContractAddress {
             contract_address_const::<0>()
+        }
+
+        fn internal_get_price_of_strk_usd(self: @ContractState) -> u128 {
+            let asset_data_type = DataType::SpotEntry(KEY);
+            let oracle = IPragmaABIDispatcher {
+                contract_address: PRAGMA_ORACLE_ADDRESS.try_into().unwrap(),
+            };
+            let oracle_response = oracle.get_data(asset_data_type, AggregationMode::Median(()));
+            let price_of_strk_usd = oracle_response.price;
+            price_of_strk_usd
+        }
+
+
+        fn calculate_bootcamp_price_in_strk(self: @ContractState, usd_price: u128) -> u128 {
+            let strk_price = self
+                .internal_get_price_of_strk_usd(); // returns 13572066 for $0.13572066
+
+            // If we want 25 USD worth of STRK:
+            // 25 * 10^8 / 13572066 = number of STRK needed
+            let scaled_amount = usd_price * ORACLE_PRECISION;
+
+            // Round up division
+            if scaled_amount % strk_price == 0 {
+                scaled_amount / strk_price
+            } else {
+                (scaled_amount / strk_price) + 1
+            }
         }
     }
 }
