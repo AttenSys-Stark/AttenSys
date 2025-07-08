@@ -142,6 +142,8 @@ pub trait IAttenSysOrg<TContractState> {
     );
     fn get_tier_price(self: @TContractState, tier: u256) -> u256;
     fn get_tier(self: @TContractState, org: ContractAddress) -> AttenSysOrg::Tier;
+    // Admin-only function to approve/disapprove organization
+    fn toggle_approval_status(ref self: TContractState, org_address: ContractAddress) -> bool;
 }
 
 // Events
@@ -271,6 +273,7 @@ pub mod AttenSysOrg {
         pub org_ipfs_uri: ByteArray,
         pub total_sponsorship_fund: u256,
         pub tier: Tier,
+        pub approved: bool,
     }
 
 
@@ -375,6 +378,7 @@ pub mod AttenSysOrg {
         SetTierPrice: SetTierPrice,
         ChangeTier: ChangeTier,
         BootCampPriceUpdated: BootCampPriceUpdated,
+        OrganizationApprovalToggled: OrganizationApprovalToggled,
         #[flat]
         OwnableEvent: OwnableComponent::Event,
         #[flat]
@@ -538,6 +542,12 @@ pub mod AttenSysOrg {
         pub new_price: u128,
     }
 
+    #[derive(Drop, starknet::Event)]
+    pub struct OrganizationApprovalToggled {
+        pub org_address: ContractAddress,
+        pub approved: bool,
+    }
+
     #[constructor]
     fn constructor(
         ref self: ContractState,
@@ -577,6 +587,7 @@ pub mod AttenSysOrg {
                     org_ipfs_uri: org_ipfs_uri.clone(),
                     total_sponsorship_fund: 0,
                     tier: Tier::Free,
+                    approved: false,
                 };
 
                 let uri = org_ipfs_uri.clone();
@@ -596,6 +607,7 @@ pub mod AttenSysOrg {
                             org_ipfs_uri: org_ipfs_uri,
                             total_sponsorship_fund: 0,
                             tier: Tier::Free,
+                            approved: false,
                         },
                     );
                 let orginization_name = org_name.clone();
@@ -1746,6 +1758,40 @@ pub mod AttenSysOrg {
 
         fn get_strk_of_usd(self: @ContractState, usd_price: u128) -> u128 {
             self.calculate_bootcamp_price_in_strk(usd_price)
+        }
+
+        fn toggle_approval_status(ref self: ContractState, org_address: ContractAddress) -> bool {
+            // Only admin can toggle approval status
+            only_admin(ref self);
+            
+            let status: bool = self.created_status.entry(org_address).read();
+            assert(status, 'Organization does not exist');
+            
+            let mut org_info: Organization = self.organization_info.entry(org_address).read();
+            
+            org_info.approved = !org_info.approved;
+            
+            let new_approval_status = org_info.approved;
+            
+            self.organization_info.entry(org_address).write(org_info);
+            
+            // Update the organization info in the all_org_info vector as well
+            for i in 0..self.all_org_info.len() {
+                let mut stored_org = self.all_org_info.at(i).read();
+                if stored_org.address_of_org == org_address {
+                    stored_org.approved = new_approval_status;
+                    self.all_org_info.at(i).write(stored_org);
+                    break;
+                }
+            }
+            
+            // Emit event
+            self.emit(OrganizationApprovalToggled { 
+                org_address: org_address, 
+                approved: new_approval_status 
+            });
+            
+            new_approval_status
         }
     }
 

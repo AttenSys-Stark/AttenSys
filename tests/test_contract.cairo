@@ -11,6 +11,7 @@ use attendsys::contracts::org::AttenSysOrg::AttenSysOrg::{
     ActiveMeetLinkAdded, BootCampCreated, BootCampSuspended, BootcampRegistration, BootcampRemoved,
     ChangeTier, Event, InstructorAddedToOrg, InstructorRemovedFromOrg, OrganizationProfile,
     OrganizationSuspended, RegistrationApproved, RegistrationDeclined, SetTierPrice, Tier,
+    OrganizationApprovalToggled,
 };
 use attendsys::contracts::org::AttenSysOrg::{IAttenSysOrgDispatcher, IAttenSysOrgDispatcherTrait};
 // use attendsys::contracts::AttenSysSponsor:: { AttenSysSponsor, IAttenSysSponsorDispatcher };
@@ -2351,5 +2352,228 @@ fn test_change_tier_for_org() {
 
     let tier = dispatcher.get_tier(owner_address);
     assert(tier == Tier::Premium, 'wrong tier');
+}
+
+///// Admin Organization Approval Tests /////
+
+#[test]
+fn test_admin_can_approve_organization() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    let mut spy = spy_events();
+
+    // Organization creates profile (should be unapproved by default)
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    
+    // Verify organization is unapproved by default
+    let org = dispatcher.get_org_info(owner_address);
+    assert_eq!(org.approved, false);
+    stop_cheat_caller_address(contract_address);
+
+    // Admin approves organization
+    start_cheat_caller_address(contract_address, dispatcher.get_admin());
+    let approval_status = dispatcher.toggle_approval_status(owner_address);
+    assert_eq!(approval_status, true);
+    stop_cheat_caller_address(contract_address);
+
+    // Verify organization is now approved
+    let updated_org = dispatcher.get_org_info(owner_address);
+    assert_eq!(updated_org.approved, true);
+
+    // Verify event was emitted
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    Event::OrganizationApprovalToggled(
+                        OrganizationApprovalToggled {
+                            org_address: owner_address,
+                            approved: true,
+                        },
+                    ),
+                ),
+            ],
+        );
+}
+
+#[test]
+fn test_admin_can_disapprove_organization() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+    let mut spy = spy_events();
+
+    // Organization creates profile
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    stop_cheat_caller_address(contract_address);
+
+    // Admin first approves organization
+    start_cheat_caller_address(contract_address, dispatcher.get_admin());
+    dispatcher.toggle_approval_status(owner_address);
+    
+    // Verify organization is approved
+    let org = dispatcher.get_org_info(owner_address);
+    assert_eq!(org.approved, true);
+
+    // Admin disapproves organization
+    let approval_status = dispatcher.toggle_approval_status(owner_address);
+    assert_eq!(approval_status, false);
+    stop_cheat_caller_address(contract_address);
+
+    // Verify organization is now disapproved
+    let updated_org = dispatcher.get_org_info(owner_address);
+    assert_eq!(updated_org.approved, false);
+
+    // Verify event was emitted
+    spy
+        .assert_emitted(
+            @array![
+                (
+                    contract_address,
+                    Event::OrganizationApprovalToggled(
+                        OrganizationApprovalToggled {
+                            org_address: owner_address,
+                            approved: false,
+                        },
+                    ),
+                ),
+            ],
+        );
+}
+
+#[test]
+#[should_panic(expected: 'Not admin')]
+fn test_non_admin_cannot_change_approval_status() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let non_admin: ContractAddress = contract_address_const::<'non_admin'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+
+    // Organization creates profile
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    stop_cheat_caller_address(contract_address);
+
+    // Non-admin tries to change approval status - should panic
+    start_cheat_caller_address(contract_address, non_admin);
+    dispatcher.toggle_approval_status(owner_address);
+}
+
+#[test]
+#[should_panic(expected: 'Not admin')]
+fn test_organization_owner_cannot_approve_self() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+
+    // Organization creates profile
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    
+    // Organization owner tries to approve themselves - should panic
+    dispatcher.toggle_approval_status(owner_address);
+}
+
+#[test]
+fn test_new_organizations_are_unapproved_by_default() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+
+    // Organization creates profile
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    stop_cheat_caller_address(contract_address);
+
+    // Verify organization is unapproved by default
+    let org = dispatcher.get_org_info(owner_address);
+    assert_eq!(org.approved, false);
+
+    // Verify in all_org_info as well
+    let all_orgs = dispatcher.get_all_org_info();
+    assert_eq!(all_orgs.len(), 1);
+    let org_info = all_orgs.at(0);
+    assert_eq!(*org_info.approved, false);
+}
+
+#[test]
+fn test_multiple_approval_toggles() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let token_addr = contract_address_const::<'new_owner'>();
+    let sponsor_contract_addr = contract_address_const::<'sponsor_contract_addr'>();
+    let contract_address = deploy_organization_contract(
+        "AttenSysOrg", hash, token_addr, sponsor_contract_addr,
+    );
+    let owner_address: ContractAddress = contract_address_const::<'owner'>();
+    let dispatcher = IAttenSysOrgDispatcher { contract_address };
+
+    // Organization creates profile
+    start_cheat_caller_address(contract_address, owner_address);
+    let org_name: ByteArray = "web3";
+    let org_ipfs_uri: ByteArray = "0xnsbsmmfbnakkdbbfjsgbdmmcjjmdnweb3";
+    dispatcher.create_org_profile(org_name, org_ipfs_uri);
+    stop_cheat_caller_address(contract_address);
+
+    // Admin toggles approval multiple times
+    start_cheat_caller_address(contract_address, dispatcher.get_admin());
+    
+    // First toggle: approve
+    let status1 = dispatcher.toggle_approval_status(owner_address);
+    assert_eq!(status1, true);
+    let org1 = dispatcher.get_org_info(owner_address);
+    assert_eq!(org1.approved, true);
+    
+    // Second toggle: disapprove
+    let status2 = dispatcher.toggle_approval_status(owner_address);
+    assert_eq!(status2, false);
+    let org2 = dispatcher.get_org_info(owner_address);
+    assert_eq!(org2.approved, false);
+    
+    // Third toggle: approve again
+    let status3 = dispatcher.toggle_approval_status(owner_address);
+    assert_eq!(status3, true);
+    let org3 = dispatcher.get_org_info(owner_address);
+    assert_eq!(org3.approved, true);
+    
+    stop_cheat_caller_address(contract_address);
 }
 
