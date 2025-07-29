@@ -97,6 +97,7 @@ pub trait IERC20<TContractState> {
 #[starknet::contract]
 pub mod AttenSysCourse {
     use attendsys::contracts::course::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use attendsys::contracts::validation::input_validation::InputValidation;
     use core::starknet::storage::{
         Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
         Vec, VecTrait,
@@ -317,12 +318,20 @@ pub mod AttenSysCourse {
             course_ipfs_uri: ByteArray,
             price_: u128,
         ) -> (ContractAddress, u128) {
-            //make an address zero check
+            // Input validation
+            InputValidation::validate_course_creation(
+                owner_, @course_ipfs_uri, @base_uri, price_
+            );
+            InputValidation::validate_string_length(@name_, 100);
+            InputValidation::validate_string_length(@symbol, 10);
+            
+            let caller = get_caller_address();
+            InputValidation::validate_caller_authorization(owner_, caller);
+            
             let identifier_count = self.identifier_tracker.read();
             let current_identifier = identifier_count + 1;
             let mut current_creator_info: Creator = self.course_creator_info.entry(owner_).read();
             if current_creator_info.number_of_courses > 0 {
-                assert(owner_ == get_caller_address(), 'not owner');
                 current_creator_info.number_of_courses += 1;
             } else {
                 current_creator_info.address = owner_;
@@ -418,10 +427,13 @@ pub mod AttenSysCourse {
         }
 
         fn acquire_a_course(ref self: ContractState, course_identifier: u128) {
+            // Input validation
+            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
+            
             let caller = get_caller_address();
-            assert(
-                !self.user_to_course_status.entry((caller, course_identifier)).read(),
-                'already acquired',
+            InputValidation::validate_non_zero_address(caller);
+            InputValidation::validate_not_already_registered(
+                self.user_to_course_status.entry((caller, course_identifier)).read()
             );
             let amount_usd = self
                 .specific_course_info_with_identifer
@@ -460,22 +472,21 @@ pub mod AttenSysCourse {
         }
 
         fn remove_course(ref self: ContractState, course_identifier: u128) {
+            // Input validation
+            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
+            
             let caller = get_caller_address();
+            InputValidation::validate_non_zero_address(caller);
+            
             let mut _owner = self
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .owner
                 .read();
-            //ensure caller is owner
-            assert(caller == _owner, 'not original creator');
-            //ensure course exists
-            let pre_existing_counter = self.identifier_tracker.read();
-
-            assert(course_identifier <= pre_existing_counter, 'course non-existent');
-            assert(course_identifier != 0, 'course non-existent');
-            //ensure course is not suspended
+            InputValidation::validate_caller_authorization(_owner, caller);
+            
             let is_suspended = self.get_suspension_status(course_identifier);
-            assert(is_suspended == false, 'Already suspended');
+            InputValidation::validate_not_suspended(is_suspended);
 
             //create a default value to replace course
             let mut default_course_call_data: Course = Course {
@@ -568,15 +579,19 @@ pub mod AttenSysCourse {
             owner_: ContractAddress,
             new_course_uri: ByteArray,
         ) {
+            // Input validation
+            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
+            InputValidation::validate_string_not_empty(@new_course_uri);
+            InputValidation::validate_string_length(@new_course_uri, 500);
+            
             let is_suspended = self.get_suspension_status(course_identifier);
-            assert(is_suspended == false, 'Already suspended');
+            InputValidation::validate_not_suspended(is_suspended);
+            
             let mut current_course_info: Course = self
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .read();
-            let pre_existing_counter = self.identifier_tracker.read();
-            assert(course_identifier <= pre_existing_counter, 'course non-existent');
-            assert(current_course_info.owner == get_caller_address(), 'not owner');
+            InputValidation::validate_caller_authorization(current_course_info.owner, get_caller_address());
             current_course_info.uri = new_course_uri.clone();
             self
                 .specific_course_info_with_identifer
@@ -647,16 +662,23 @@ pub mod AttenSysCourse {
             //todo : verifier check, get a value from frontend, confirm the hash if it matches with
             //what is being saved. goal is to avoid fraudulent course claim.
             //todo issue certification. (whitelist address)
+            // Input validation
+            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
+            
+            let caller = get_caller_address();
+            InputValidation::validate_non_zero_address(caller);
+            
             let is_suspended = self.get_suspension_status(course_identifier);
+            InputValidation::validate_not_suspended(is_suspended);
+            
             let taken_status = self
                 .user_to_course_status
-                .entry((get_caller_address(), course_identifier))
+                .entry((caller, course_identifier))
                 .read();
-            assert(taken_status == true, 'not taken course');
-            assert(is_suspended == false, 'Already suspended');
-            assert(
-                !self.is_course_certified.entry((get_caller_address(), course_identifier)).read(),
-                'Already certified',
+            InputValidation::validate_course_taken(taken_status);
+            
+            InputValidation::validate_not_already_completed(
+                self.is_course_certified.entry((caller, course_identifier)).read()
             );
             self.is_course_certified.entry((get_caller_address(), course_identifier)).write(true);
             self.completion_status.entry((get_caller_address(), course_identifier)).write(true);
@@ -758,8 +780,11 @@ pub mod AttenSysCourse {
         }
 
         fn transfer_admin(ref self: ContractState, new_admin: ContractAddress) {
-            assert(new_admin != self.zero_address(), 'zero address not allowed');
-            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+            // Input validation
+            let caller = get_caller_address();
+            InputValidation::validate_admin_only(caller, self.admin.read());
+            InputValidation::validate_non_zero_address(new_admin);
+            InputValidation::validate_not_same_address(caller, new_admin);
 
             self.intended_new_admin.write(new_admin);
             self.emit(AdminTransferred { new_admin: new_admin });
@@ -907,15 +932,21 @@ pub mod AttenSysCourse {
         }
 
         fn creator_withdraw(ref self: ContractState, amount: u128) {
+            // Input validation
+            InputValidation::validate_amount_not_zero_u128(amount);
+            
             let caller = get_caller_address();
+            InputValidation::validate_non_zero_address(caller);
+            
+            let creator_balance = self.withdrawable_amount.entry(caller).read();
+            InputValidation::validate_amount_not_zero_u128(creator_balance);
+            InputValidation::validate_sufficient_balance_u128(creator_balance, amount);
+            
             let token_dispatcher = IERC20Dispatcher {
                 contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
             };
             let contract_token_balance = token_dispatcher.balanceOf(get_contract_address());
-            assert(self.withdrawable_amount.entry(caller).read() > 0, 'not admin');
-            assert(amount <= contract_token_balance, 'Not enough balance');
-            let creator_balance = self.withdrawable_amount.entry(caller).read();
-            assert(amount <= creator_balance, 'Not enough balance');
+            InputValidation::validate_sufficient_balance_u128(contract_token_balance, amount);
             let fee = amount * self.fee_value.read() / 100;
             let withdrawable_less_fee = amount - fee;
             self.fee_withdrawable.write(self.fee_withdrawable.read() + fee);
@@ -930,16 +961,19 @@ pub mod AttenSysCourse {
         }
 
         fn init_fee_percent(ref self: ContractState, fee: u128) {
-            assert(fee > 0, 'fee cannot be zero');
-            assert(fee <= 100, 'fee cannot be > 100');
-            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+            // Input validation
+            InputValidation::validate_fee_percentage(fee);
+            let caller = get_caller_address();
+            InputValidation::validate_admin_only(caller, self.admin.read());
             self.fee_value.write(fee);
         }
 
         fn admin_withdrawables(ref self: ContractState, amount: u128) {
-            assert(amount > 0, 'amount cannot be zero');
-            assert(amount <= self.fee_withdrawable.read(), 'Not enough balance');
-            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+            // Input validation
+            InputValidation::validate_amount_not_zero_u128(amount);
+            let caller = get_caller_address();
+            InputValidation::validate_admin_only(caller, self.admin.read());
+            InputValidation::validate_sufficient_balance_u128(self.fee_withdrawable.read(), amount);
             let token_dispatcher = IERC20Dispatcher {
                 contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
             };
@@ -960,13 +994,16 @@ pub mod AttenSysCourse {
         }
 
         fn review(ref self: ContractState, course_identifier: u128) {
+            // Input validation
+            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
+            
             let caller = get_caller_address();
-            assert(
-                self.user_to_course_status.entry((caller, course_identifier)).read(),
-                'not acquired',
+            InputValidation::validate_non_zero_address(caller);
+            InputValidation::validate_course_taken(
+                self.user_to_course_status.entry((caller, course_identifier)).read()
             );
-            assert(
-                !self.course_review.entry((caller, course_identifier)).read(), 'already reviewed',
+            InputValidation::validate_not_already_completed(
+                self.course_review.entry((caller, course_identifier)).read()
             );
             self.course_review.entry((caller, course_identifier)).write(true);
         }
