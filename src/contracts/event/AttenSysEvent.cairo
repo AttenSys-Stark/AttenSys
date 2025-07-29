@@ -752,14 +752,15 @@ mod AttenSysEvent {
         }
 
         fn claim_admin_ownership(ref self: ContractState) {
-            assert(get_caller_address() == self.intended_new_admin.read(), 'unauthorized caller');
+            // Input validation
+            let caller = get_caller_address();
+            let intended_admin = self.intended_new_admin.read();
+            InputValidation::validate_caller_authorization(intended_admin, caller);
 
-            let new_admin = self.intended_new_admin.read();
-
-            self.admin.write(self.intended_new_admin.read());
+            self.admin.write(intended_admin);
             self.intended_new_admin.write(self.zero_address());
 
-            self.emit(Event::AdminOwnershipClaimed(AdminOwnershipClaimed { new_admin: new_admin }));
+            self.emit(Event::AdminOwnershipClaimed(AdminOwnershipClaimed { new_admin: intended_admin }));
         }
 
         fn get_admin(self: @ContractState) -> ContractAddress {

@@ -93,13 +93,13 @@ pub mod InputValidation {
 
     // Authorization validation
     pub fn validate_caller_authorization(expected: ContractAddress, actual: ContractAddress) {
-        assert(expected == actual, 'Unauthorized caller');
+        assert(expected == actual, 'unauthorized caller');
     }
 
     pub fn validate_admin_only(caller: ContractAddress, admin: ContractAddress) {
         validate_non_zero_address(caller);
         validate_non_zero_address(admin);
-        assert(caller == admin, 'Admin access required');
+        assert(caller == admin, 'unauthorized caller');
     }
 
     // Array and DOS protection

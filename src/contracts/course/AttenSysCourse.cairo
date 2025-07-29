@@ -791,9 +791,12 @@ pub mod AttenSysCourse {
         }
 
         fn claim_admin_ownership(ref self: ContractState) {
-            assert(get_caller_address() == self.intended_new_admin.read(), 'unauthorized caller');
+            // Input validation
+            let caller = get_caller_address();
+            let intended_admin = self.intended_new_admin.read();
+            InputValidation::validate_caller_authorization(intended_admin, caller);
 
-            self.admin.write(self.intended_new_admin.read());
+            self.admin.write(intended_admin);
             self.intended_new_admin.write(self.zero_address());
         }
 
