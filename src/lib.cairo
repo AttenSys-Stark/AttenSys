@@ -20,6 +20,9 @@ pub mod contracts {
     pub mod registry {
         pub mod data;
     }
+    pub mod validation {
+        pub mod input_validation;
+    }
     pub mod mock;
     pub mod oracle;
 }

@@ -79,6 +79,7 @@ mod AttenSysEvent {
     use attendsys::contracts::sponsor::AttenSysSponsor::{
         IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
     };
+    use attendsys::contracts::validation::input_validation::InputValidation;
     use core::num::traits::Zero;
     use core::starknet::storage::{
         Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
@@ -308,10 +309,16 @@ mod AttenSysEvent {
             event_uri: ByteArray,
             event_location: u8,
         ) -> ContractAddress {
+            // Input validation
+            InputValidation::validate_event_creation(
+                owner_, @event_name, @event_uri, start_time_, end_time_, event_location, reg_status
+            );
+            InputValidation::validate_string_length(@base_uri, 500);
+            InputValidation::validate_string_length(@name_, 100);
+            InputValidation::validate_string_length(@symbol, 10);
+            
             let pre_existing_counter = self.event_identifier.read();
             let new_identifier = pre_existing_counter + 1;
-            assert(event_location < 2 && event_location >= 0, 'invalid input');
-            assert(reg_status < 2 && reg_status >= 0, 'invalid input');
             let time_data: Time = Time {
                 registration_open: reg_status, start_time: start_time_, end_time: end_time_,
             };
@@ -460,8 +467,14 @@ mod AttenSysEvent {
         ) {
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             let event_location = event_details.location;
+            // Input validation
+            InputValidation::validate_non_zero_address(attendee_);
+            InputValidation::validate_identifier_exists_u256(event_identifier, self.event_identifier.read().into());
+            
             let caller = get_caller_address();
+            InputValidation::validate_non_zero_address(caller);
             let event_organizer_address = event_details.event_organizer;
+            
             assert(
                 self.attendance_status.entry((attendee_, event_identifier)).read() == false,
                 'already marked',
@@ -471,20 +484,12 @@ mod AttenSysEvent {
             } else {
                 assert(caller == event_organizer_address, 'wrong caller');
             }
-            assert(event_details.is_suspended == false, 'event is suspended');
-            assert(
-                self.registered.entry((attendee_, event_identifier)).read() == true,
-                'not registered',
+            InputValidation::validate_not_suspended(event_details.is_suspended);
+            InputValidation::validate_already_registered(
+                self.registered.entry((attendee_, event_identifier)).read()
             );
             assert(event_details.active_status == true, 'not started');
-            assert(
-                self
-                    .specific_event_with_identifier
-                    .entry(event_identifier)
-                    .read()
-                    .canceled == false,
-                'event canceled',
-            );
+            InputValidation::validate_not_canceled(event_details.canceled);
 
             assert(get_block_timestamp().into() >= event_details.time.start_time, 'not started');
             let count = self
@@ -529,20 +534,20 @@ mod AttenSysEvent {
         fn register_for_event(
             ref self: ContractState, event_identifier: u256, user_uri: ByteArray,
         ) {
+            // Input validation
+            InputValidation::validate_identifier_exists_u256(event_identifier, self.event_identifier.read().into());
+            InputValidation::validate_string_not_empty(@user_uri);
+            InputValidation::validate_string_length(@user_uri, 500);
+            
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
-            assert(event_details.is_suspended == false, 'event is suspended');
-            assert(
-                self
-                    .specific_event_with_identifier
-                    .entry(event_identifier)
-                    .read()
-                    .canceled == false,
-                'event canceled',
-            );
-            //can only register once
-            assert(
-                self.registered.entry((get_caller_address(), event_identifier)).read() == false,
-                'already registered',
+            InputValidation::validate_not_suspended(event_details.is_suspended);
+            InputValidation::validate_not_canceled(event_details.canceled);
+            InputValidation::validate_registration_open(event_details.time.registration_open);
+            
+            let caller = get_caller_address();
+            InputValidation::validate_non_zero_address(caller);
+            InputValidation::validate_not_already_registered(
+                self.registered.entry((caller, event_identifier)).read()
             );
             // assert(get_block_timestamp().into() >= event_details.time.start_time, 'not started');
             self.registered.entry((get_caller_address(), event_identifier)).write(true);
@@ -727,8 +732,11 @@ mod AttenSysEvent {
         }
 
         fn transfer_admin(ref self: ContractState, new_admin: ContractAddress) {
-            assert(new_admin != self.zero_address(), 'zero address not allowed');
-            assert(get_caller_address() == self.admin.read(), 'unauthorized caller');
+            // Input validation
+            let caller = get_caller_address();
+            InputValidation::validate_admin_only(caller, self.admin.read());
+            InputValidation::validate_non_zero_address(new_admin);
+            InputValidation::validate_not_same_address(caller, new_admin);
 
             let old_admin = self.admin.read();
             self.intended_new_admin.write(new_admin);
@@ -744,14 +752,15 @@ mod AttenSysEvent {
         }
 
         fn claim_admin_ownership(ref self: ContractState) {
-            assert(get_caller_address() == self.intended_new_admin.read(), 'unauthorized caller');
+            // Input validation
+            let caller = get_caller_address();
+            let intended_admin = self.intended_new_admin.read();
+            InputValidation::validate_caller_authorization(intended_admin, caller);
 
-            let new_admin = self.intended_new_admin.read();
-
-            self.admin.write(self.intended_new_admin.read());
+            self.admin.write(intended_admin);
             self.intended_new_admin.write(self.zero_address());
 
-            self.emit(Event::AdminOwnershipClaimed(AdminOwnershipClaimed { new_admin: new_admin }));
+            self.emit(Event::AdminOwnershipClaimed(AdminOwnershipClaimed { new_admin: intended_admin }));
         }
 
         fn get_admin(self: @ContractState) -> ContractAddress {
@@ -765,16 +774,18 @@ mod AttenSysEvent {
         fn sponsor_event(
             ref self: ContractState, event_identifier: u256, amt: u256, uri: ByteArray,
         ) {
-            assert(event_identifier > 0, 'Invalid event ID');
-            assert(uri.len() > 0, 'uri is empty');
-            // check if such event exists
+            // Input validation
+            InputValidation::validate_identifier_exists_u256(event_identifier, self.event_identifier.read().into());
+            InputValidation::validate_amount_not_zero_u256(amt);
+            InputValidation::validate_string_not_empty(@uri);
+            InputValidation::validate_string_length(@uri, 500);
+            
             let event = self
                 .specific_event_with_identifier
                 .entry(event_identifier)
                 .read()
                 .event_organizer;
             assert(self.event_exists.entry(event).read(), 'No such event');
-            assert(amt > 0, 'Invalid amount');
             let sponsor = get_caller_address();
             let balance = self.event_to_balance_of_sponsorship.entry(event).read();
             let sponsor_contract_address = self.sponsorship_contract_address.read();
@@ -803,15 +814,19 @@ mod AttenSysEvent {
         }
 
         fn withdraw_sponsorship_funds(ref self: ContractState, amt: u256) {
-            assert(amt > 0, 'Invalid withdrawal amount');
+            // Input validation
+            InputValidation::validate_amount_not_zero_u256(amt);
+            
             let event = get_caller_address();
+            InputValidation::validate_non_zero_address(event);
             assert(self.event_exists.entry(event).read(), 'No such event');
+            
             let event_sponsorship_balance = self
                 .event_to_balance_of_sponsorship
                 .entry(event)
                 .read();
-            assert(event_sponsorship_balance > 0, 'Zero funds retrieved');
-            assert(event_sponsorship_balance >= amt, 'Insufficient funds');
+            InputValidation::validate_amount_not_zero_u256(event_sponsorship_balance);
+            InputValidation::validate_sufficient_balance_u256(event_sponsorship_balance, amt);
             let token_address = self.token_address.read();
             let sponsor_contract_address = self.sponsorship_contract_address.read();
             let sponsor_dispatcher = IAttenSysSponsorDispatcher {
