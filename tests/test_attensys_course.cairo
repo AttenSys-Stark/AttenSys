@@ -6,7 +6,7 @@ use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
     stop_cheat_caller_address,
 };
-use starknet::{ClassHash, ContractAddress, contract_address_const};
+use starknet::{ClassHash, ContractAddress, contract_address_const, get_block_timestamp};
 
 
 fn zero_address() -> ContractAddress {
@@ -218,7 +218,7 @@ fn test_check_course_completion_status() {
     // Complete course as student
     start_cheat_caller_address(contract_address, student);
     attensys_course_contract.acquire_a_course(1);
-    attensys_course_contract.finish_course_claim_certification(1);
+    attensys_course_contract.finish_course_claim_certification(1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
 
     // Test completion status is now true
     let completion_status = attensys_course_contract
@@ -392,13 +392,13 @@ fn test_purchase_course_completions_n_withdrawals() {
 
     // First student completes
     start_cheat_caller_address(contract_address, student1.try_into().unwrap());
-    attensys_course_contract.finish_course_claim_certification(1);
+    attensys_course_contract.finish_course_claim_certification(1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
     let count_after_first = attensys_course_contract.get_total_course_completions(1);
     assert(count_after_first == 1, 'count should be 1');
 
     // Second student completes
     start_cheat_caller_address(contract_address, student2.try_into().unwrap());
-    attensys_course_contract.finish_course_claim_certification(1);
+    attensys_course_contract.finish_course_claim_certification(1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
     let count_after_second = attensys_course_contract.get_total_course_completions(1);
     assert(count_after_second == 2, 'count should be 2');
 

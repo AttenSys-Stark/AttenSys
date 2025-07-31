@@ -311,12 +311,12 @@ mod AttenSysEvent {
         ) -> ContractAddress {
             // Input validation
             InputValidation::validate_event_creation(
-                owner_, @event_name, @event_uri, start_time_, end_time_, event_location, reg_status
+                owner_, @event_name, @event_uri, start_time_, end_time_, event_location, reg_status,
             );
             InputValidation::validate_string_length(@base_uri, 500);
             InputValidation::validate_string_length(@name_, 100);
             InputValidation::validate_string_length(@symbol, 10);
-            
+
             let pre_existing_counter = self.event_identifier.read();
             let new_identifier = pre_existing_counter + 1;
             let time_data: Time = Time {
@@ -469,12 +469,14 @@ mod AttenSysEvent {
             let event_location = event_details.location;
             // Input validation
             InputValidation::validate_non_zero_address(attendee_);
-            InputValidation::validate_identifier_exists_u256(event_identifier, self.event_identifier.read().into());
-            
+            InputValidation::validate_identifier_exists_u256(
+                event_identifier, self.event_identifier.read().into(),
+            );
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
             let event_organizer_address = event_details.event_organizer;
-            
+
             assert(
                 self.attendance_status.entry((attendee_, event_identifier)).read() == false,
                 'already marked',
@@ -486,7 +488,7 @@ mod AttenSysEvent {
             }
             InputValidation::validate_not_suspended(event_details.is_suspended);
             InputValidation::validate_already_registered(
-                self.registered.entry((attendee_, event_identifier)).read()
+                self.registered.entry((attendee_, event_identifier)).read(),
             );
             assert(event_details.active_status == true, 'not started');
             InputValidation::validate_not_canceled(event_details.canceled);
@@ -535,19 +537,21 @@ mod AttenSysEvent {
             ref self: ContractState, event_identifier: u256, user_uri: ByteArray,
         ) {
             // Input validation
-            InputValidation::validate_identifier_exists_u256(event_identifier, self.event_identifier.read().into());
+            InputValidation::validate_identifier_exists_u256(
+                event_identifier, self.event_identifier.read().into(),
+            );
             InputValidation::validate_string_not_empty(@user_uri);
             InputValidation::validate_string_length(@user_uri, 500);
-            
+
             let event_details = self.specific_event_with_identifier.entry(event_identifier).read();
             InputValidation::validate_not_suspended(event_details.is_suspended);
             InputValidation::validate_not_canceled(event_details.canceled);
             InputValidation::validate_registration_open(event_details.time.registration_open);
-            
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
             InputValidation::validate_not_already_registered(
-                self.registered.entry((caller, event_identifier)).read()
+                self.registered.entry((caller, event_identifier)).read(),
             );
             // assert(get_block_timestamp().into() >= event_details.time.start_time, 'not started');
             self.registered.entry((get_caller_address(), event_identifier)).write(true);
@@ -760,7 +764,12 @@ mod AttenSysEvent {
             self.admin.write(intended_admin);
             self.intended_new_admin.write(self.zero_address());
 
-            self.emit(Event::AdminOwnershipClaimed(AdminOwnershipClaimed { new_admin: intended_admin }));
+            self
+                .emit(
+                    Event::AdminOwnershipClaimed(
+                        AdminOwnershipClaimed { new_admin: intended_admin },
+                    ),
+                );
         }
 
         fn get_admin(self: @ContractState) -> ContractAddress {
@@ -775,11 +784,13 @@ mod AttenSysEvent {
             ref self: ContractState, event_identifier: u256, amt: u256, uri: ByteArray,
         ) {
             // Input validation
-            InputValidation::validate_identifier_exists_u256(event_identifier, self.event_identifier.read().into());
+            InputValidation::validate_identifier_exists_u256(
+                event_identifier, self.event_identifier.read().into(),
+            );
             InputValidation::validate_amount_not_zero_u256(amt);
             InputValidation::validate_string_not_empty(@uri);
             InputValidation::validate_string_length(@uri, 500);
-            
+
             let event = self
                 .specific_event_with_identifier
                 .entry(event_identifier)
@@ -816,11 +827,11 @@ mod AttenSysEvent {
         fn withdraw_sponsorship_funds(ref self: ContractState, amt: u256) {
             // Input validation
             InputValidation::validate_amount_not_zero_u256(amt);
-            
+
             let event = get_caller_address();
             InputValidation::validate_non_zero_address(event);
             assert(self.event_exists.entry(event).read(), 'No such event');
-            
+
             let event_sponsorship_balance = self
                 .event_to_balance_of_sponsorship
                 .entry(event)

@@ -71,7 +71,9 @@ pub mod AttenSysSponsor {
         // Input validation
         InputValidation::validate_non_zero_address(organization_contract_address);
         InputValidation::validate_non_zero_address(event_contract_address);
-        InputValidation::validate_not_same_address(organization_contract_address, event_contract_address);
+        InputValidation::validate_not_same_address(
+            organization_contract_address, event_contract_address,
+        );
         self.attenSysOrganization.write(organization_contract_address);
         self.attenSysEvent.write(event_contract_address);
     }
@@ -89,16 +91,13 @@ pub mod AttenSysSponsor {
             InputValidation::validate_non_zero_address(sender);
             InputValidation::validate_non_zero_address(token_address);
             InputValidation::validate_amount_not_zero_u256(amount);
-            
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
             let org_addr = self.attenSysOrganization.read();
             let event_addr = self.attenSysEvent.read();
-            assert(
-                caller == org_addr || caller == event_addr,
-                'not an expected caller.',
-            );
-            
+            assert(caller == org_addr || caller == event_addr, 'not an expected caller.');
+
             let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
             let has_transferred = token_dispatcher
                 .transferFrom(sender: sender, recipient: get_contract_address(), amount: amount);
@@ -118,16 +117,13 @@ pub mod AttenSysSponsor {
             // Input validation
             InputValidation::validate_non_zero_address(token_address);
             InputValidation::validate_amount_not_zero_u256(amount);
-            
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
             let org_addr = self.attenSysOrganization.read();
             let event_addr = self.attenSysEvent.read();
-            assert(
-                caller == org_addr || caller == event_addr,
-                'not an expected caller.',
-            );
-            
+            assert(caller == org_addr || caller == event_addr, 'not an expected caller.');
+
             let contract_token_balance = self.balances.read(token_address);
             InputValidation::validate_sufficient_balance_u256(contract_token_balance, amount);
             let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
