@@ -1,6 +1,7 @@
 use attendsys::contracts::course::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
+use core::num::traits::Zero;
 use openzeppelin::token::erc20::interface::{ERC20ABIDispatcher, ERC20ABIDispatcherTrait};
 use snforge_std::{
     ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
@@ -8,10 +9,10 @@ use snforge_std::{
 };
 use starknet::{ClassHash, ContractAddress, contract_address_const, get_block_timestamp};
 
-
 fn zero_address() -> ContractAddress {
     contract_address_const::<0>()
 }
+
 
 fn deploy_contract(name: ByteArray, hash: ClassHash) -> ContractAddress {
     let contract = declare(name).unwrap().contract_class();
@@ -218,7 +219,10 @@ fn test_check_course_completion_status() {
     // Complete course as student
     start_cheat_caller_address(contract_address, student);
     attensys_course_contract.acquire_a_course(1);
-    attensys_course_contract.finish_course_claim_certification(1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
+    attensys_course_contract
+        .finish_course_claim_certification(
+            1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252),
+        );
 
     // Test completion status is now true
     let completion_status = attensys_course_contract
@@ -228,6 +232,124 @@ fn test_check_course_completion_status() {
     stop_cheat_caller_address(contract_address);
 }
 
+#[test]
+fn test_assessment_system_initialization() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let contract_address = deploy_contract("AttenSysCourse", hash);
+    let dispatcher = IAttenSysCourseDispatcher { contract_address };
+
+    // Set master address
+    start_cheat_caller_address(contract_address, contract_address_const::<'admin'>());
+    dispatcher.set_master_address(contract_address_const::<'master'>());
+    stop_cheat_caller_address(contract_address);
+
+    // Test initial configuration
+    let (threshold, cooldown, max_attempts) = dispatcher.get_assessment_config();
+    assert!(threshold == 80, "Initial threshold should be 80");
+    assert!(cooldown == 604800, "Initial cooldown should be 1 week");
+    assert!(max_attempts == 2, "Initial max attempts should be 2");
+
+    // Test master address is set
+    let master = dispatcher.get_master_address();
+    assert(!master.is_zero(), 'Master address should be set');
+    assert(master == contract_address_const::<'master'>(), 'Master address should match');
+}
+
+#[test]
+#[ignore]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
+#[should_panic(expected: 'Score below threshold')]
+fn test_assessment_score_below_threshold() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let contract_address = deploy_contract("AttenSysCourse", hash);
+    let dispatcher = IAttenSysCourseDispatcher { contract_address };
+
+    // Set master address and create course
+    start_cheat_caller_address(contract_address, contract_address_const::<'admin'>());
+    dispatcher.set_master_address(contract_address_const::<'master'>());
+    let base_uri: ByteArray = "https://example.com/nft/";
+    let name: ByteArray = "Test Course";
+    let symbol: ByteArray = "TC";
+    let course_uri: ByteArray = "https://ipfs.io/test-course";
+    let (_, course_id) = dispatcher
+        .create_course(
+            contract_address_const::<'admin'>(),
+            true,
+            base_uri,
+            name,
+            symbol,
+            course_uri,
+            1000_u128,
+        );
+    stop_cheat_caller_address(contract_address);
+
+    // Acquire course
+    let student = contract_address_const::<'student'>();
+    start_cheat_caller_address(contract_address, student);
+    dispatcher.acquire_a_course(course_id);
+
+    // Try to certify with score below threshold
+    let score = 70_u8;
+    let timestamp = get_block_timestamp();
+    let signature = (123456_felt252, 789_felt252);
+    dispatcher.finish_course_claim_certification(course_id, score, timestamp, signature);
+}
+
+#[test]
+#[ignore]
+#[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
+#[should_panic(expected: 'Invalid timestamp: future time')]
+fn test_future_timestamp_validation() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let contract_address = deploy_contract("AttenSysCourse", hash);
+    let dispatcher = IAttenSysCourseDispatcher { contract_address };
+
+    // Set master address and create course
+    start_cheat_caller_address(contract_address, contract_address_const::<'admin'>());
+    dispatcher.set_master_address(contract_address_const::<'master'>());
+    let base_uri: ByteArray = "https://example.com/nft/";
+    let name: ByteArray = "Test Course";
+    let symbol: ByteArray = "TC";
+    let course_uri: ByteArray = "https://ipfs.io/test-course";
+    let (_, course_id) = dispatcher
+        .create_course(
+            contract_address_const::<'admin'>(),
+            true,
+            base_uri,
+            name,
+            symbol,
+            course_uri,
+            1000_u128,
+        );
+    stop_cheat_caller_address(contract_address);
+
+    // Acquire course
+    let student = contract_address_const::<'student'>();
+    start_cheat_caller_address(contract_address, student);
+    dispatcher.acquire_a_course(course_id);
+
+    // Try to certify with future timestamp
+    let score = 85_u8;
+    let current_time = get_block_timestamp();
+    let future_time = current_time + 3600;
+    let signature = (123456_felt252, 789_felt252);
+    dispatcher.finish_course_claim_certification(course_id, score, future_time, signature);
+}
+
+#[test]
+fn test_assessment_config_update() {
+    let (_nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let contract_address = deploy_contract("AttenSysCourse", hash);
+    let dispatcher = IAttenSysCourseDispatcher { contract_address };
+
+    start_cheat_caller_address(contract_address, contract_address_const::<'admin'>());
+    dispatcher.update_assessment_config(90, 1209600, 3); // 90%, 2 weeks, 3 attempts
+
+    let (threshold, cooldown, max_attempts) = dispatcher.get_assessment_config();
+    assert!(threshold == 90, "Threshold should be updated to 90");
+    assert!(cooldown == 1209600, "Cooldown should be updated");
+    assert!(max_attempts == 3, "Max attempts should be updated to 3");
+}
 
 #[test]
 #[ignore]
@@ -392,13 +514,19 @@ fn test_purchase_course_completions_n_withdrawals() {
 
     // First student completes
     start_cheat_caller_address(contract_address, student1.try_into().unwrap());
-    attensys_course_contract.finish_course_claim_certification(1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
+    attensys_course_contract
+        .finish_course_claim_certification(
+            1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252),
+        );
     let count_after_first = attensys_course_contract.get_total_course_completions(1);
     assert(count_after_first == 1, 'count should be 1');
 
     // Second student completes
     start_cheat_caller_address(contract_address, student2.try_into().unwrap());
-    attensys_course_contract.finish_course_claim_certification(1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
+    attensys_course_contract
+        .finish_course_claim_certification(
+            1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252),
+        );
     let count_after_second = attensys_course_contract.get_total_course_completions(1);
     assert(count_after_second == 2, 'count should be 2');
 

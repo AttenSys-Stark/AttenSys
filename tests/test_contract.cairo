@@ -293,7 +293,10 @@ fn test_finish_course_n_claim() {
         .create_course(owner_address_two, true, token_uri, nft_name, nft_symb, token_uri_2, 0);
 
     start_cheat_caller_address(contract_address, viewer1_address);
-    dispatcher.finish_course_claim_certification(1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
+    dispatcher
+        .finish_course_claim_certification(
+            1, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252),
+        );
     spy
         .assert_emitted(
             @array![
@@ -308,9 +311,15 @@ fn test_finish_course_n_claim() {
             ],
         );
     start_cheat_caller_address(contract_address, viewer2_address);
-    dispatcher.finish_course_claim_certification(2, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
+    dispatcher
+        .finish_course_claim_certification(
+            2, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252),
+        );
     start_cheat_caller_address(contract_address, viewer3_address);
-    dispatcher.finish_course_claim_certification(3, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252));
+    dispatcher
+        .finish_course_claim_certification(
+            3, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252),
+        );
 
     let nftContract_a = dispatcher.get_course_nft_contract(1);
     let nftContract_b = dispatcher.get_course_nft_contract(2);

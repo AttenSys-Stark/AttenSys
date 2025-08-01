@@ -730,8 +730,6 @@ pub mod AttenSysCourse {
         }
 
 
-
-
         fn check_course_completion_status_n_certification(
             self: @ContractState, course_identifier: u128, candidate: ContractAddress,
         ) -> bool {
