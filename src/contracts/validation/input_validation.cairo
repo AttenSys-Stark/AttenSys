@@ -1,5 +1,5 @@
-use starknet::{ContractAddress};
 use core::num::traits::Zero;
+use starknet::ContractAddress;
 
 pub mod InputValidation {
     use super::*;
@@ -137,10 +137,7 @@ pub mod InputValidation {
     }
 
     pub fn validate_sponsorship_deposit(
-        sender: ContractAddress,
-        event_organizer: ContractAddress,
-        amount: u256,
-        uri: @ByteArray
+        sender: ContractAddress, event_organizer: ContractAddress, amount: u256, uri: @ByteArray,
     ) {
         validate_non_zero_address(sender);
         validate_non_zero_address(event_organizer);
@@ -151,10 +148,7 @@ pub mod InputValidation {
 
     // Combined validation functions for common operations
     pub fn validate_course_creation(
-        owner: ContractAddress,
-        course_name: @ByteArray,
-        course_uri: @ByteArray,
-        price: u128
+        owner: ContractAddress, course_name: @ByteArray, course_uri: @ByteArray, price: u128,
     ) {
         validate_non_zero_address(owner);
         validate_string_length(course_name, 100);
@@ -169,7 +163,7 @@ pub mod InputValidation {
         start_time: u256,
         end_time: u256,
         location: u8,
-        reg_status: u8
+        reg_status: u8,
     ) {
         validate_non_zero_address(owner);
         validate_string_length(event_name, 200);

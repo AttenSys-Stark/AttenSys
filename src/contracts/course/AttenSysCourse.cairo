@@ -22,8 +22,6 @@ pub trait IAttenSysCourse<TContractState> {
     );
     fn acquire_a_course(ref self: TContractState, course_identifier: u128);
     //untested
-    fn finish_course_claim_certification(ref self: TContractState, course_identifier: u128);
-    //untested
     fn check_course_completion_status_n_certification(
         self: @TContractState, course_identifier: u128, candidate: ContractAddress,
     ) -> bool;
@@ -69,6 +67,23 @@ pub trait IAttenSysCourse<TContractState> {
     fn get_review_status(
         self: @TContractState, course_identifier: u128, user: ContractAddress,
     ) -> bool;
+    fn finish_course_claim_certification(
+        ref self: TContractState,
+        course_identifier: u128,
+        assessment_score: u8,
+        assessment_timestamp: u64,
+        assessment_signature: (felt252, felt252),
+    );
+    fn get_assessment_cooldown_period(self: @TContractState) -> u64;
+    fn get_user_assessment_status(
+        self: @TContractState, user: ContractAddress, course_identifier: u128,
+    ) -> (u8, u64, bool);
+    fn get_assessment_config(self: @TContractState) -> (u8, u64, u8);
+    fn get_master_address(self: @TContractState) -> ContractAddress;
+    fn update_assessment_config(
+        ref self: TContractState, threshold: u8, cooldown_period: u64, max_attempts: u8,
+    );
+    fn set_master_address(ref self: TContractState, master_address: ContractAddress);
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -98,15 +113,18 @@ pub trait IERC20<TContractState> {
 pub mod AttenSysCourse {
     use attendsys::contracts::course::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
     use attendsys::contracts::validation::input_validation::InputValidation;
+    use core::ecdsa::check_ecdsa_signature;
+    use core::poseidon::poseidon_hash_span;
     use core::starknet::storage::{
         Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
         Vec, VecTrait,
     };
     use core::starknet::syscalls::deploy_syscall;
     use core::starknet::{
-        ClassHash, ContractAddress, contract_address_const, get_caller_address,
+        ClassHash, ContractAddress, contract_address_const, get_block_timestamp, get_caller_address,
         get_contract_address,
     };
+    use core::traits::TryInto;
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
@@ -154,6 +172,9 @@ pub mod AttenSysCourse {
         AcquiredCourse: AcquiredCourse,
         CourseApproved: CourseApproved,
         CourseUnapproved: CourseUnapproved,
+        AssessmentAttempted: AssessmentAttempted,
+        AssessmentFailed: AssessmentFailed,
+        AssessmentConfigurationUpdated: AssessmentConfigurationUpdated,
     }
 
     #[derive(starknet::Event, Clone, Debug, Drop)]
@@ -224,6 +245,30 @@ pub mod AttenSysCourse {
         course_identifier: u128,
     }
 
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct AssessmentAttempted {
+        course_identifier: u128,
+        user: ContractAddress,
+        score: u8,
+        attempt_number: u8,
+        timestamp: u64,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct AssessmentFailed {
+        course_identifier: u128,
+        user: ContractAddress,
+        score: u8,
+        reason: ByteArray,
+    }
+
+    #[derive(starknet::Event, Clone, Debug, Drop)]
+    pub struct AssessmentConfigurationUpdated {
+        threshold: u8,
+        cooldown_period: u64,
+        max_attempts: u8,
+    }
+
     #[storage]
     struct Storage {
         //save content creator info including all all contents created.
@@ -270,6 +315,18 @@ pub mod AttenSysCourse {
         total_course_sales: Map<ContractAddress, u128>,
         // review status
         course_review: Map<(ContractAddress, u128), bool>,
+        // Track assessment attempts per user per course
+        user_assessment_attempts: Map<(ContractAddress, u128), u8>,
+        // last assessment attempt timestamp
+        user_last_assessment_time: Map<(ContractAddress, u128), u64>,
+        // best assessment score per user per course
+        user_best_assessment_score: Map<(ContractAddress, u128), u8>,
+        // assessment configuration
+        assessment_threshold: u8,
+        assessment_cooldown_period: u64,
+        max_assessment_attempts: u8,
+        // Master address for signature verification
+        master_address: ContractAddress,
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -304,6 +361,16 @@ pub mod AttenSysCourse {
         self.admin.write(owner);
         self.hash.write(_hash);
         self.ownable.initializer(owner);
+        self.assessment_threshold.write(80); // 80% threshold
+        self.assessment_cooldown_period.write(604800); // 1 week in seconds
+        self.max_assessment_attempts.write(2);
+        self
+            .master_address
+            .write(
+                contract_address_const::<
+                    0x02f43F1966bBB129B8e33C6c775213a8D466dcD1c949c20eE48e7c4B45185c85,
+                >(),
+            );
     }
 
     #[abi(embed_v0)]
@@ -319,15 +386,13 @@ pub mod AttenSysCourse {
             price_: u128,
         ) -> (ContractAddress, u128) {
             // Input validation
-            InputValidation::validate_course_creation(
-                owner_, @course_ipfs_uri, @base_uri, price_
-            );
+            InputValidation::validate_course_creation(owner_, @course_ipfs_uri, @base_uri, price_);
             InputValidation::validate_string_length(@name_, 100);
             InputValidation::validate_string_length(@symbol, 10);
-            
+
             let caller = get_caller_address();
             InputValidation::validate_caller_authorization(owner_, caller);
-            
+
             let identifier_count = self.identifier_tracker.read();
             let current_identifier = identifier_count + 1;
             let mut current_creator_info: Creator = self.course_creator_info.entry(owner_).read();
@@ -428,12 +493,14 @@ pub mod AttenSysCourse {
 
         fn acquire_a_course(ref self: ContractState, course_identifier: u128) {
             // Input validation
-            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
-            
+            InputValidation::validate_identifier_exists(
+                course_identifier, self.identifier_tracker.read(),
+            );
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
             InputValidation::validate_not_already_registered(
-                self.user_to_course_status.entry((caller, course_identifier)).read()
+                self.user_to_course_status.entry((caller, course_identifier)).read(),
             );
             let amount_usd = self
                 .specific_course_info_with_identifer
@@ -473,18 +540,20 @@ pub mod AttenSysCourse {
 
         fn remove_course(ref self: ContractState, course_identifier: u128) {
             // Input validation
-            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
-            
+            InputValidation::validate_identifier_exists(
+                course_identifier, self.identifier_tracker.read(),
+            );
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
-            
+
             let mut _owner = self
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .owner
                 .read();
             InputValidation::validate_caller_authorization(_owner, caller);
-            
+
             let is_suspended = self.get_suspension_status(course_identifier);
             InputValidation::validate_not_suspended(is_suspended);
 
@@ -580,18 +649,22 @@ pub mod AttenSysCourse {
             new_course_uri: ByteArray,
         ) {
             // Input validation
-            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
+            InputValidation::validate_identifier_exists(
+                course_identifier, self.identifier_tracker.read(),
+            );
             InputValidation::validate_string_not_empty(@new_course_uri);
             InputValidation::validate_string_length(@new_course_uri, 500);
-            
+
             let is_suspended = self.get_suspension_status(course_identifier);
             InputValidation::validate_not_suspended(is_suspended);
-            
+
             let mut current_course_info: Course = self
                 .specific_course_info_with_identifer
                 .entry(course_identifier)
                 .read();
-            InputValidation::validate_caller_authorization(current_course_info.owner, get_caller_address());
+            InputValidation::validate_caller_authorization(
+                current_course_info.owner, get_caller_address(),
+            );
             current_course_info.uri = new_course_uri.clone();
             self
                 .specific_course_info_with_identifer
@@ -652,59 +725,6 @@ pub mod AttenSysCourse {
                         course_identifier: course_identifier,
                         owner_: owner_,
                         new_course_uri: new_course_uri,
-                    },
-                );
-        }
-
-
-        fn finish_course_claim_certification(ref self: ContractState, course_identifier: u128) {
-            //only check for accessment score. that is if there's assesment
-            //todo : verifier check, get a value from frontend, confirm the hash if it matches with
-            //what is being saved. goal is to avoid fraudulent course claim.
-            //todo issue certification. (whitelist address)
-            // Input validation
-            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
-            
-            let caller = get_caller_address();
-            InputValidation::validate_non_zero_address(caller);
-            
-            let is_suspended = self.get_suspension_status(course_identifier);
-            InputValidation::validate_not_suspended(is_suspended);
-            
-            let taken_status = self
-                .user_to_course_status
-                .entry((caller, course_identifier))
-                .read();
-            InputValidation::validate_course_taken(taken_status);
-            
-            InputValidation::validate_not_already_completed(
-                self.is_course_certified.entry((caller, course_identifier)).read()
-            );
-            self.is_course_certified.entry((get_caller_address(), course_identifier)).write(true);
-            self.completion_status.entry((get_caller_address(), course_identifier)).write(true);
-            self.completed_courses.entry(get_caller_address()).append().write(course_identifier);
-            let nft_contract_address = self
-                .course_nft_contract_address
-                .entry(course_identifier)
-                .read();
-
-            let nft_dispatcher = super::IAttenSysNftDispatcher {
-                contract_address: nft_contract_address,
-            };
-
-            let nft_id = self
-                .track_minted_nft_id
-                .entry((course_identifier, nft_contract_address))
-                .read();
-            nft_dispatcher.mint(get_caller_address(), nft_id.into());
-            self
-                .track_minted_nft_id
-                .entry((course_identifier, nft_contract_address))
-                .write(nft_id + 1);
-            self
-                .emit(
-                    CourseCertClaimed {
-                        course_identifier: course_identifier, candidate: get_caller_address(),
                     },
                 );
         }
@@ -937,14 +957,14 @@ pub mod AttenSysCourse {
         fn creator_withdraw(ref self: ContractState, amount: u128) {
             // Input validation
             InputValidation::validate_amount_not_zero_u128(amount);
-            
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
-            
+
             let creator_balance = self.withdrawable_amount.entry(caller).read();
             InputValidation::validate_amount_not_zero_u128(creator_balance);
             InputValidation::validate_sufficient_balance_u128(creator_balance, amount);
-            
+
             let token_dispatcher = IERC20Dispatcher {
                 contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
             };
@@ -998,15 +1018,17 @@ pub mod AttenSysCourse {
 
         fn review(ref self: ContractState, course_identifier: u128) {
             // Input validation
-            InputValidation::validate_identifier_exists(course_identifier, self.identifier_tracker.read());
-            
+            InputValidation::validate_identifier_exists(
+                course_identifier, self.identifier_tracker.read(),
+            );
+
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
             InputValidation::validate_course_taken(
-                self.user_to_course_status.entry((caller, course_identifier)).read()
+                self.user_to_course_status.entry((caller, course_identifier)).read(),
             );
             InputValidation::validate_not_already_completed(
-                self.course_review.entry((caller, course_identifier)).read()
+                self.course_review.entry((caller, course_identifier)).read(),
             );
             self.course_review.entry((caller, course_identifier)).write(true);
         }
@@ -1015,6 +1037,197 @@ pub mod AttenSysCourse {
             self: @ContractState, course_identifier: u128, user: ContractAddress,
         ) -> bool {
             self.course_review.entry((user, course_identifier)).read()
+        }
+
+        fn finish_course_claim_certification(
+            ref self: ContractState,
+            course_identifier: u128,
+            assessment_score: u8,
+            assessment_timestamp: u64,
+            assessment_signature: (felt252, felt252),
+        ) {
+            // Input validation
+            InputValidation::validate_identifier_exists(
+                course_identifier, self.identifier_tracker.read(),
+            );
+
+            let caller = get_caller_address();
+            InputValidation::validate_non_zero_address(caller);
+
+            let is_suspended = self.get_suspension_status(course_identifier);
+            InputValidation::validate_not_suspended(is_suspended);
+
+            let taken_status = self.user_to_course_status.entry((caller, course_identifier)).read();
+            InputValidation::validate_course_taken(taken_status);
+
+            InputValidation::validate_not_already_completed(
+                self.is_course_certified.entry((caller, course_identifier)).read(),
+            );
+
+            // Check attempt limits
+            let attempts = self.user_assessment_attempts.entry((caller, course_identifier)).read();
+            assert(attempts < self.max_assessment_attempts.read(), 'Max attempts reached');
+
+            // Check cooldown period
+            let last_attempt = self
+                .user_last_assessment_time
+                .entry((caller, course_identifier))
+                .read();
+            let current_time = get_block_timestamp();
+            assert(
+                current_time >= last_attempt + self.assessment_cooldown_period.read(),
+                'Cooldown period not met',
+            );
+
+            // Verify master signature
+            let master_address = self.master_address.read();
+            assert(master_address != contract_address_const::<0>(), 'Master address not set');
+            self
+                .verify_master_signature(
+                    caller,
+                    course_identifier,
+                    assessment_score,
+                    assessment_timestamp,
+                    assessment_signature,
+                    master_address,
+                );
+
+            // Update assessment tracking
+            let new_attempts = attempts + 1;
+            self.user_assessment_attempts.entry((caller, course_identifier)).write(new_attempts);
+            self.user_last_assessment_time.entry((caller, course_identifier)).write(current_time);
+
+            // Check if score meets threshold
+            if assessment_score >= self.assessment_threshold.read() {
+                // Update best score if this is better
+                let current_best = self
+                    .user_best_assessment_score
+                    .entry((caller, course_identifier))
+                    .read();
+                if assessment_score > current_best {
+                    self
+                        .user_best_assessment_score
+                        .entry((caller, course_identifier))
+                        .write(assessment_score);
+                }
+
+                // Proceed with certification
+                self.is_course_certified.entry((caller, course_identifier)).write(true);
+                self.completion_status.entry((caller, course_identifier)).write(true);
+                self.completed_courses.entry(caller).push(course_identifier);
+
+                let nft_contract_address = self
+                    .course_nft_contract_address
+                    .entry(course_identifier)
+                    .read();
+
+                let nft_dispatcher = super::IAttenSysNftDispatcher {
+                    contract_address: nft_contract_address,
+                };
+
+                let nft_id = self
+                    .track_minted_nft_id
+                    .entry((course_identifier, nft_contract_address))
+                    .read();
+                self
+                    .track_minted_nft_id
+                    .entry((course_identifier, nft_contract_address))
+                    .write(nft_id + 1);
+                nft_dispatcher.mint(caller, nft_id.into());
+
+                self
+                    .emit(
+                        AssessmentAttempted {
+                            course_identifier: course_identifier,
+                            user: caller,
+                            score: assessment_score,
+                            attempt_number: new_attempts,
+                            timestamp: current_time,
+                        },
+                    );
+
+                self
+                    .emit(
+                        CourseCertClaimed {
+                            course_identifier: course_identifier, candidate: caller,
+                        },
+                    );
+            } else {
+                // Assessment failed
+                self
+                    .emit(
+                        AssessmentFailed {
+                            course_identifier: course_identifier,
+                            user: caller,
+                            score: assessment_score,
+                            reason: "Score below threshold",
+                        },
+                    );
+                assert(false, 'Score below threshold');
+            }
+        }
+
+        fn get_assessment_cooldown_period(self: @ContractState) -> u64 {
+            self.assessment_cooldown_period.read()
+        }
+
+        fn get_user_assessment_status(
+            self: @ContractState, user: ContractAddress, course_identifier: u128,
+        ) -> (u8, u64, bool) {
+            let attempts = self.user_assessment_attempts.entry((user, course_identifier)).read();
+            let last_attempt = self
+                .user_last_assessment_time
+                .entry((user, course_identifier))
+                .read();
+            let current_time = get_block_timestamp();
+            let can_take_assessment = attempts < self.max_assessment_attempts.read()
+                && current_time >= last_attempt
+                + self.assessment_cooldown_period.read();
+            (attempts, last_attempt, can_take_assessment)
+        }
+
+        fn get_assessment_config(self: @ContractState) -> (u8, u64, u8) {
+            (
+                self.assessment_threshold.read(),
+                self.assessment_cooldown_period.read(),
+                self.max_assessment_attempts.read(),
+            )
+        }
+
+        fn get_master_address(self: @ContractState) -> ContractAddress {
+            self.master_address.read()
+        }
+
+        fn update_assessment_config(
+            ref self: ContractState, threshold: u8, cooldown_period: u64, max_attempts: u8,
+        ) {
+            let caller = get_caller_address();
+            InputValidation::validate_admin_only(caller, self.admin.read());
+
+            assert(threshold <= 100, 'Threshold must be <= 100');
+            assert(max_attempts > 0, 'Max attempts must be > 0');
+            assert(cooldown_period > 0, 'Cooldown period must be > 0');
+
+            self.assessment_threshold.write(threshold);
+            self.assessment_cooldown_period.write(cooldown_period);
+            self.max_assessment_attempts.write(max_attempts);
+
+            self
+                .emit(
+                    AssessmentConfigurationUpdated {
+                        threshold: threshold,
+                        cooldown_period: cooldown_period,
+                        max_attempts: max_attempts,
+                    },
+                );
+        }
+
+        fn set_master_address(ref self: ContractState, master_address: ContractAddress) {
+            let caller = get_caller_address();
+            InputValidation::validate_admin_only(caller, self.admin.read());
+            InputValidation::validate_non_zero_address(master_address);
+
+            self.master_address.write(master_address);
         }
     }
 
@@ -1049,6 +1262,40 @@ pub mod AttenSysCourse {
             } else {
                 (scaled_amount / strk_price) + 1
             }
+        }
+
+        fn verify_master_signature(
+            self: @ContractState,
+            user: ContractAddress,
+            course_identifier: u128,
+            score: u8,
+            timestamp: u64,
+            signature: (felt252, felt252),
+            master_address: ContractAddress,
+        ) {
+            // Verify that the timestamp is valid
+            let current_time = get_block_timestamp();
+            assert(timestamp <= current_time, 'Invalid timestamp: future time');
+            assert(current_time - timestamp <= 86400, 'Invalid timestamp: too old'); // 24 hours max
+
+            // Verify that the score is within valid range
+            assert(score >= 0 && score <= 100, 'Invalid score range');
+
+            // Create message hash using Poseidon hash for the assessment data
+            let message_data = array![
+                user.into(), course_identifier.into(), score.into(), timestamp.into(),
+            ];
+            let message_hash = poseidon_hash_span(message_data.span());
+
+            // Extract r and s from signature tuple
+            let (r, s) = signature;
+
+            // Get public key from master address
+            let public_key = master_address.into();
+
+            let is_valid = check_ecdsa_signature(message_hash, public_key, r, s);
+
+            assert(is_valid, 'Invalid signature verification');
         }
     }
 }
