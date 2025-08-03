@@ -6,13 +6,13 @@ pub mod SafeMath {
     // Safe addition for u128
     pub fn safe_add_u128(a: u128, b: u128) -> u128 {
         let result = a + b;
-        assert(result >= a, 'SafeMath: addition overflow');
+        assert(result >= a, 'SafeMath: add overflow');
         result
     }
 
     // Safe subtraction for u128
     pub fn safe_sub_u128(a: u128, b: u128) -> u128 {
-        assert(b <= a, 'SafeMath: subtraction overflow');
+        assert(b <= a, 'SafeMath: sub overflow');
         a - b
     }
 
@@ -22,26 +22,26 @@ pub mod SafeMath {
             return 0;
         }
         let result = a * b;
-        assert(result / a == b, 'SafeMath: multiplication overflow');
+        assert(result / a == b, 'SafeMath: mul overflow');
         result
     }
 
     // Safe division for u128
     pub fn safe_div_u128(a: u128, b: u128) -> u128 {
-        assert(b != 0, 'SafeMath: division by zero');
+        assert(b != 0, 'SafeMath: div by zero');
         a / b
     }
 
     // Safe addition for u256
     pub fn safe_add_u256(a: u256, b: u256) -> u256 {
         let result = a + b;
-        assert(result >= a, 'SafeMath: addition overflow');
+        assert(result >= a, 'SafeMath: add overflow');
         result
     }
 
     // Safe subtraction for u256
     pub fn safe_sub_u256(a: u256, b: u256) -> u256 {
-        assert(b <= a, 'SafeMath: subtraction overflow');
+        assert(b <= a, 'SafeMath: sub overflow');
         a - b
     }
 
@@ -51,25 +51,25 @@ pub mod SafeMath {
             return 0;
         }
         let result = a * b;
-        assert(result / a == b, 'SafeMath: multiplication overflow');
+        assert(result / a == b, 'SafeMath: mul overflow');
         result
     }
 
     // Safe division for u256
     pub fn safe_div_u256(a: u256, b: u256) -> u256 {
-        assert(b != 0, 'SafeMath: division by zero');
+        assert(b != 0, 'SafeMath: div by zero');
         a / b
     }
 
     // Safe percentage calculation (amount * percentage / 100)
     pub fn safe_percentage_u128(amount: u128, percentage: u128) -> u128 {
-        assert(percentage <= 100, 'SafeMath: percentage exceeds 100');
+        assert(percentage <= 100, 'SafeMath: pct > 100');
         safe_div_u128(safe_mul_u128(amount, percentage), 100)
     }
 
     // Safe percentage calculation for u256
     pub fn safe_percentage_u256(amount: u256, percentage: u256) -> u256 {
-        assert(percentage <= 100, 'SafeMath: percentage exceeds 100');
+        assert(percentage <= 100, 'SafeMath: pct > 100');
         safe_div_u256(safe_mul_u256(amount, percentage), 100)
     }
 
