@@ -152,6 +152,8 @@ pub mod AttenSysOrg {
     use attendsys::contracts::sponsor::AttenSysSponsor::{
         IAttenSysSponsorDispatcher, IAttenSysSponsorDispatcherTrait,
     };
+    use attendsys::contracts::validation::input_validation::InputValidation;
+    use attendsys::contracts::validation::safe_math::SafeMath;
     use core::num::traits::Zero;
     use core::starknet::storage::{
         Map, MutableVecTrait, StoragePathEntry, StoragePointerReadAccess, StoragePointerWriteAccess,
@@ -247,6 +249,8 @@ pub mod AttenSysOrg {
         student_address_to_specific_bootcamp: Map<
             (ContractAddress, ContractAddress), Vec<RegisteredBootcamp>,
         >,
+        // Reentrancy protection
+        _reentrancy_status: Map<ContractAddress, bool>,
         //maps tier to price
         tier_price: Map<u256, u256>,
         //maps org to bootcamp to classID
@@ -551,6 +555,19 @@ pub mod AttenSysOrg {
         self.sponsorship_contract_address.write(sponsorship_contract_address);
         self.admin.write(admin);
         self.ownable.initializer(admin);
+    }
+
+    // Reentrancy protection functions
+    fn _non_reentrant_before(ref self: ContractState) {
+        let caller = get_caller_address();
+        let is_reentering = self._reentrancy_status.read(caller);
+        assert(!is_reentering, 'ReentrancyGuard: reentrant call');
+        self._reentrancy_status.write(caller, true);
+    }
+
+    fn _non_reentrant_after(ref self: ContractState) {
+        let caller = get_caller_address();
+        self._reentrancy_status.write(caller, false);
     }
 
     #[abi(embed_v0)]
@@ -1227,57 +1244,76 @@ pub mod AttenSysOrg {
         }
 
         fn withdraw_sponsorship_fund(ref self: ContractState, amt: u256) {
-            let organization = get_caller_address();
-            assert(amt > 0, 'Invalid withdrawal amount');
-            let status: bool = self.created_status.entry(organization).read();
-            if (status) {
-                assert(
-                    self.org_to_balance_of_sponsorship.entry(organization).read() >= amt,
-                    'insufficient funds',
-                );
-                let contract_address = self.token_address.read();
-                let sponsor_contract_address = self.sponsorship_contract_address.read();
-                let sponsor_dispatcher = IAttenSysSponsorDispatcher {
-                    contract_address: sponsor_contract_address,
-                };
-                sponsor_dispatcher.withdraw(contract_address, amt);
+            // Reentrancy protection
+            self._non_reentrant_before();
 
-                let balanceBefore = self.org_to_balance_of_sponsorship.entry(organization).read();
-                self.org_to_balance_of_sponsorship.entry(organization).write(balanceBefore - amt);
-                // let contract_address = self.token_address.read();
-                // let sponsor_dispatcher = IAttenSysSponsorDispatcher { contract_address };
-                /// @maintainer What's the need for this deposit func, I'm guessing it's an error
-                // sponsor_dispatcher.deposit(organization, self.token_address.read(), amt);
-                self.emit(Withdrawn { amt, organization });
-            } else {
-                panic!("not an organization");
-            }
+            // Input validation (Checks)
+            InputValidation::validate_amount_not_zero_u256(amt);
+            let organization = get_caller_address();
+            InputValidation::validate_non_zero_address(organization);
+            
+            let status: bool = self.created_status.entry(organization).read();
+            assert(status, 'No withdrawable balance');
+            
+            let current_balance = self.org_to_balance_of_sponsorship.entry(organization).read();
+            InputValidation::validate_sufficient_balance_u256(current_balance, amt);
+
+            // Update state before external call (Effects)
+            let new_balance = SafeMath::safe_sub_u256(current_balance, amt);
+            self.org_to_balance_of_sponsorship.entry(organization).write(new_balance);
+
+            // External call (Interactions)
+            let contract_address = self.token_address.read();
+            let sponsor_contract_address = self.sponsorship_contract_address.read();
+            let sponsor_dispatcher = IAttenSysSponsorDispatcher {
+                contract_address: sponsor_contract_address,
+            };
+            sponsor_dispatcher.withdraw(contract_address, amt);
+
+            // Emit event
+            self.emit(Withdrawn { amt, organization });
+
+            // Clear reentrancy protection
+            self._non_reentrant_after();
         }
 
         fn withdraw_bootcamp_funds(
             ref self: ContractState, org_: ContractAddress, bootcamp_id: u64,
         ) {
-            // Assert here that the caller is the organization
+            // Reentrancy protection
+            self._non_reentrant_before();
+
+            // Input validation (Checks)
+            InputValidation::validate_non_zero_address(org_);
             let caller = get_caller_address();
+            InputValidation::validate_non_zero_address(caller);
+            
             let status: bool = self.created_status.entry(caller).read();
+            assert(status, 'No withdrawable balance');
+            
             let mut bootcamp: Bootcamp = self.org_to_bootcamps.entry(org_).at(bootcamp_id).read();
             let bootcamp_funds = bootcamp.bootcamp_funds;
+            
             assert(
                 bootcamp.bootcamp_funds_status != BootCampFundsStatus::WITHDRAWN,
-                'Already Withdrawn',
+                'No withdrawable balance',
             );
-            assert(self.bootcamp_ended.entry(org_).entry(bootcamp_id).read(), 'Bootcamp not ended');
-            let attensys_org_contract = get_contract_address();
+            assert(self.bootcamp_ended.entry(org_).entry(bootcamp_id).read(), 'No withdrawable balance');
+            
+            // Update state before external call (Effects)
+            bootcamp.bootcamp_funds = 0;
+            self.org_to_bootcamps.entry(org_).at(bootcamp_id).write(bootcamp);
+
+            // External call (Interactions)
             let strk_address: ContractAddress = STRK_ADDRESS.try_into().unwrap();
             let strk_dispatcher = IERC20Dispatcher { contract_address: strk_address };
-
             let transfer = strk_dispatcher.transfer(org_, bootcamp_funds.into());
 
-            assert(transfer, 'Withdrawal Failed');
+            // Verify transfer success
+            assert(transfer, 'Token transfer failed');
 
-            bootcamp.bootcamp_funds = 0;
-
-            self.org_to_bootcamps.entry(org_).at(bootcamp_id).write(bootcamp);
+            // Clear reentrancy protection
+            self._non_reentrant_after();
         }
 
         fn suspend_organization(ref self: ContractState, org_: ContractAddress, suspend: bool) {
