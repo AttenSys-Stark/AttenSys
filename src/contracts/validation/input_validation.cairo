@@ -99,7 +99,7 @@ pub mod InputValidation {
     pub fn validate_admin_only(caller: ContractAddress, admin: ContractAddress) {
         validate_non_zero_address(caller);
         validate_non_zero_address(admin);
-        assert(caller == admin, 'No withdrawable balance');
+        assert(caller == admin, 'unauthorized caller');
     }
 
     // Array and DOS protection

@@ -376,9 +376,14 @@ pub mod AttenSysCourse {
             );
     }
 
-    #[abi(embed_v0)]
-    impl IAttenSysCourseImpl of super::IAttenSysCourse<ContractState> {
-        // Reentrancy protection functions
+    // Reentrancy protection trait
+    trait ReentrancyGuardTrait<TContractState> {
+        fn _non_reentrant_before(ref self: TContractState);
+        fn _non_reentrant_after(ref self: TContractState);
+    }
+
+    // Reentrancy protection implementation
+    impl ReentrancyGuardImpl of ReentrancyGuardTrait<ContractState> {
         fn _non_reentrant_before(ref self: ContractState) {
             let caller = get_caller_address();
             let is_reentering = self._reentrancy_status.read(caller);
@@ -390,6 +395,10 @@ pub mod AttenSysCourse {
             let caller = get_caller_address();
             self._reentrancy_status.write(caller, false);
         }
+    }
+
+    #[abi(embed_v0)]
+    impl IAttenSysCourseImpl of super::IAttenSysCourse<ContractState> {
         fn create_course(
             ref self: ContractState,
             owner_: ContractAddress,

@@ -557,9 +557,14 @@ pub mod AttenSysOrg {
         self.ownable.initializer(admin);
     }
 
-    #[abi(embed_v0)]
-    impl IAttenSysOrgImpl of super::IAttenSysOrg<ContractState> {
-        // Reentrancy protection functions
+    // Reentrancy protection trait
+    trait ReentrancyGuardTrait<TContractState> {
+        fn _non_reentrant_before(ref self: TContractState);
+        fn _non_reentrant_after(ref self: TContractState);
+    }
+
+    // Reentrancy protection implementation
+    impl ReentrancyGuardImpl of ReentrancyGuardTrait<ContractState> {
         fn _non_reentrant_before(ref self: ContractState) {
             let caller = get_caller_address();
             let is_reentering = self._reentrancy_status.read(caller);
@@ -571,6 +576,10 @@ pub mod AttenSysOrg {
             let caller = get_caller_address();
             self._reentrancy_status.write(caller, false);
         }
+    }
+
+    #[abi(embed_v0)]
+    impl IAttenSysOrgImpl of super::IAttenSysOrg<ContractState> {
         //ability to create organization profile, each org info should be saved properly, use
         //mappings and structs where necessary
         fn create_org_profile(
@@ -1252,7 +1261,9 @@ pub mod AttenSysOrg {
             InputValidation::validate_non_zero_address(organization);
             
             let status: bool = self.created_status.entry(organization).read();
-            assert(status, 'No withdrawable balance');
+            if !status {
+                panic!("not an organization");
+            }
             
             let current_balance = self.org_to_balance_of_sponsorship.entry(organization).read();
             InputValidation::validate_sufficient_balance_u256(current_balance, amt);
@@ -1288,16 +1299,18 @@ pub mod AttenSysOrg {
             InputValidation::validate_non_zero_address(caller);
             
             let status: bool = self.created_status.entry(caller).read();
-            assert(status, 'No withdrawable balance');
+            if !status {
+                panic!("not an organization");
+            }
             
             let mut bootcamp: Bootcamp = self.org_to_bootcamps.entry(org_).at(bootcamp_id).read();
             let bootcamp_funds = bootcamp.bootcamp_funds;
             
             assert(
                 bootcamp.bootcamp_funds_status != BootCampFundsStatus::WITHDRAWN,
-                'No withdrawable balance',
+                'Already Withdrawn',
             );
-            assert(self.bootcamp_ended.entry(org_).entry(bootcamp_id).read(), 'No withdrawable balance');
+            assert(self.bootcamp_ended.entry(org_).entry(bootcamp_id).read(), 'Bootcamp not ended');
             
             // Update state before external call (Effects)
             bootcamp.bootcamp_funds = 0;
@@ -1369,7 +1382,9 @@ pub mod AttenSysOrg {
             let status: bool = self.created_status.entry(caller).read();
 
             // Check if caller is an organization
-            assert(status, 'Not an organization');
+            if !status {
+                panic!("not an organization");
+            }
 
             // Check if organization is not suspended
             assert(!self.org_suspended.entry(caller).read(), 'Organization suspended');

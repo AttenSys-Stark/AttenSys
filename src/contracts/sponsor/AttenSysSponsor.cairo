@@ -89,9 +89,14 @@ pub mod AttenSysSponsor {
         self.attenSysEvent.write(event_contract_address);
     }
 
-    #[abi(embed_v0)]
-    impl AttenSysSponsorImpl of super::IAttenSysSponsor<ContractState> {
-        // Reentrancy protection functions
+    // Reentrancy protection trait
+    trait ReentrancyGuardTrait<TContractState> {
+        fn _non_reentrant_before(ref self: TContractState);
+        fn _non_reentrant_after(ref self: TContractState);
+    }
+
+    // Reentrancy protection implementation
+    impl ReentrancyGuardImpl of ReentrancyGuardTrait<ContractState> {
         fn _non_reentrant_before(ref self: ContractState) {
             let caller = get_caller_address();
             let is_reentering = self._reentrancy_status.read(caller);
@@ -103,6 +108,10 @@ pub mod AttenSysSponsor {
             let caller = get_caller_address();
             self._reentrancy_status.write(caller, false);
         }
+    }
+
+    #[abi(embed_v0)]
+    impl AttenSysSponsorImpl of super::IAttenSysSponsor<ContractState> {
         fn deposit(
             ref self: ContractState,
             sender: ContractAddress,
@@ -118,7 +127,7 @@ pub mod AttenSysSponsor {
             InputValidation::validate_non_zero_address(caller);
             let org_addr = self.attenSysOrganization.read();
             let event_addr = self.attenSysEvent.read();
-            assert(caller == org_addr || caller == event_addr, 'No withdrawable balance');
+            assert(caller == org_addr || caller == event_addr, 'not an expected caller.');
 
             let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
             let has_transferred = token_dispatcher
@@ -155,7 +164,7 @@ pub mod AttenSysSponsor {
             InputValidation::validate_non_zero_address(caller);
             let org_addr = self.attenSysOrganization.read();
             let event_addr = self.attenSysEvent.read();
-            assert(caller == org_addr || caller == event_addr, 'No withdrawable balance');
+            assert(caller == org_addr || caller == event_addr, 'not an expected caller.');
 
             let contract_token_balance = self.balances.read(token_address);
             InputValidation::validate_sufficient_balance_u256(contract_token_balance, amount);
