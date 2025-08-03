@@ -89,21 +89,20 @@ pub mod AttenSysSponsor {
         self.attenSysEvent.write(event_contract_address);
     }
 
-    // Reentrancy protection functions
-    fn _non_reentrant_before(ref self: ContractState) {
-        let caller = get_caller_address();
-        let is_reentering = self._reentrancy_status.read(caller);
-        assert(!is_reentering, 'ReentrancyGuard: reentrant call');
-        self._reentrancy_status.write(caller, true);
-    }
-
-    fn _non_reentrant_after(ref self: ContractState) {
-        let caller = get_caller_address();
-        self._reentrancy_status.write(caller, false);
-    }
-
     #[abi(embed_v0)]
     impl AttenSysSponsorImpl of super::IAttenSysSponsor<ContractState> {
+        // Reentrancy protection functions
+        fn _non_reentrant_before(ref self: ContractState) {
+            let caller = get_caller_address();
+            let is_reentering = self._reentrancy_status.read(caller);
+            assert(!is_reentering, 'ReentrancyGuard: reentrant call');
+            self._reentrancy_status.write(caller, true);
+        }
+
+        fn _non_reentrant_after(ref self: ContractState) {
+            let caller = get_caller_address();
+            self._reentrancy_status.write(caller, false);
+        }
         fn deposit(
             ref self: ContractState,
             sender: ContractAddress,
