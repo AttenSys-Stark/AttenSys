@@ -150,11 +150,13 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     let token_uri: ByteArray = "https://dummy_uri.com/your_id";
     let name_: ByteArray = "Attensys";
     let symbol: ByteArray = "ATS";
+    let owner: ContractAddress = contract_address_const::<'owner'>();
     let mut constructor_calldata = ArrayTrait::new();
 
     token_uri.serialize(ref constructor_calldata);
     name_.serialize(ref constructor_calldata);
     symbol.serialize(ref constructor_calldata);
+    owner.serialize(ref constructor_calldata);
 
     let contract = declare(name).unwrap().contract_class();
     let (contract_address, _) = ContractClassTrait::deploy(contract, @constructor_calldata)

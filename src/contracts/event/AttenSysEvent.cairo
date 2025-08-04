@@ -88,6 +88,7 @@ mod AttenSysEvent {
     use core::starknet::syscalls::deploy_syscall;
     use core::starknet::{
         ClassHash, ContractAddress, contract_address_const, get_block_timestamp, get_caller_address,
+        get_contract_address,
     };
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
@@ -341,6 +342,7 @@ mod AttenSysEvent {
             base_uri.serialize(ref constructor_args);
             name_.serialize(ref constructor_args);
             symbol.serialize(ref constructor_args);
+            get_contract_address().serialize(ref constructor_args);
             let contract_address_salt: felt252 = new_identifier.try_into().unwrap();
             //deploy contract
             let (deployed_contract_address, _) = deploy_syscall(

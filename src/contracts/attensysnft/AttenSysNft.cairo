@@ -8,8 +8,6 @@ pub trait IAttenSysNft<TContractState> {
     fn is_authorized_minter(self: @TContractState, minter: ContractAddress) -> bool;
 }
 
-//to do make sure only org, event and orgs can call the mint function
-
 #[starknet::contract]
 mod AttenSysNft {
     use openzeppelin::access::ownable::OwnableComponent;
@@ -32,7 +30,6 @@ mod AttenSysNft {
         erc721: ERC721Component::Storage,
         #[substorage(v0)]
         src5: SRC5Component::Storage,
-        // ownable component storage
         #[substorage(v0)]
         ownable: OwnableComponent::Storage,
         // Authorized minters mapping
@@ -62,30 +59,36 @@ mod AttenSysNft {
         pub minter: ContractAddress,
     }
 
+    /// Ownable
+    #[abi(embed_v0)]
+    impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
+    impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
+
     #[constructor]
     fn constructor(
         ref self: ContractState,
         base_uri: ByteArray,
         name_: ByteArray,
         symbol: ByteArray,
-        owner: ContractAddress,
+        owner_: ContractAddress,
     ) {
         self.erc721.initializer(name_, symbol, base_uri);
-        self.ownable.initializer(owner);
-        // Authorize the official course contract as initial minter
+        self.ownable.initializer(owner_);
+
+        // Authorize the hardcoded course contract address
         let attensys_course: ContractAddress = ATTENSYS_COURSE_ADDRESS.try_into().unwrap();
         self.authorized_minters.write(attensys_course, true);
         self.emit(MinterAuthorized { minter: attensys_course });
+
+        let deployer = get_caller_address();
+        self.authorized_minters.write(deployer, true);
+        self.emit(MinterAuthorized { minter: deployer });
     }
 
     #[abi(embed_v0)]
     impl ERC721Impl = ERC721Component::ERC721MixinImpl<ContractState>;
 
     impl ERC721InternalImpl = ERC721Component::InternalImpl<ContractState>;
-
-    #[abi(embed_v0)]
-    impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
-    impl OwnableInternalImpl = OwnableComponent::InternalImpl<ContractState>;
 
     #[abi(embed_v0)]
     impl AttenSysNft of super::IAttenSysNft<ContractState> {
@@ -99,16 +102,13 @@ mod AttenSysNft {
         fn authorize_minter(ref self: ContractState, minter: ContractAddress) {
             // Only contract owner can authorize new minters
             self.ownable.assert_only_owner();
-
             self.authorized_minters.write(minter, true);
             self.emit(MinterAuthorized { minter });
         }
 
-        /// Revoke minter authorization - only owner can call this
+        /// Revoke minter authorization, only owner can call this
         fn revoke_minter(ref self: ContractState, minter: ContractAddress) {
-            // Only contract owner can revoke minter authorization
             self.ownable.assert_only_owner();
-
             self.authorized_minters.write(minter, false);
             self.emit(MinterRevoked { minter });
         }

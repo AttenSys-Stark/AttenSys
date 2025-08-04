@@ -84,7 +84,6 @@ pub trait IAttenSysCourse<TContractState> {
         ref self: TContractState, threshold: u8, cooldown_period: u64, max_attempts: u8,
     );
     fn set_master_address(ref self: TContractState, master_address: ContractAddress);
-    fn set_nft_class_hash(ref self: TContractState, hash: ClassHash);
 }
 
 //Todo, make a count of the total number of users that finished the course.
@@ -94,6 +93,8 @@ pub trait IAttenSysNft<TContractState> {
     // NFT contract
     fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u256);
     fn authorize_minter(ref self: TContractState, minter: ContractAddress);
+    fn revoke_minter(ref self: TContractState, minter: ContractAddress);
+    fn is_authorized_minter(self: @TContractState, minter: ContractAddress) -> bool;
 }
 
 #[starknet::interface]
@@ -132,7 +133,7 @@ pub mod AttenSysCourse {
     use openzeppelin::upgrades::interface::IUpgradeable;
     use pragma_lib::abi::{IPragmaABIDispatcher, IPragmaABIDispatcherTrait};
     use pragma_lib::types::{AggregationMode, DataType, PragmaPricesResponse};
-    use super::{IAttenSysNftDispatcher, IAttenSysNftDispatcherTrait};
+    use super::IAttenSysNftDispatcherTrait;
 
 
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -329,8 +330,6 @@ pub mod AttenSysCourse {
         max_assessment_attempts: u8,
         // Master address for signature verification
         master_address: ContractAddress,
-        // course nft class hash
-        nft_class_hash: ClassHash,
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -361,10 +360,9 @@ pub mod AttenSysCourse {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, owner: ContractAddress //_hash: ClassHash
-    ) {
+    fn constructor(ref self: ContractState, owner: ContractAddress, _hash: ClassHash) {
         self.admin.write(owner);
-        // self.hash.write(_hash);
+        self.hash.write(_hash);
         self.ownable.initializer(owner);
         self.assessment_threshold.write(80); // 80% threshold
         self.assessment_cooldown_period.write(604800); // 1 week in seconds
@@ -377,7 +375,6 @@ pub mod AttenSysCourse {
                 >(),
             );
     }
-
 
     #[abi(embed_v0)]
     impl IAttenSysCourseImpl of super::IAttenSysCourse<ContractState> {
@@ -465,16 +462,16 @@ pub mod AttenSysCourse {
             base_uri.serialize(ref constructor_args);
             name_.serialize(ref constructor_args);
             symbol.serialize(ref constructor_args);
-            get_contract_address().serialize(ref constructor_args); // Course contract as owner
+            get_contract_address().serialize(ref constructor_args);
             let contract_address_salt: felt252 = current_identifier.try_into().unwrap();
 
             //deploy contract
             let (deployed_contract_address, _) = deploy_syscall(
-                // self.hash.read(),
-                self.nft_class_hash.read(), contract_address_salt, constructor_args.span(), false,
+                self.hash.read(), contract_address_salt, constructor_args.span(), false,
             )
                 .expect('failed to deploy_syscall');
-            let nft_dispatcher = IAttenSysNftDispatcher {
+            //authorize the minter
+            let nft_dispatcher = super::IAttenSysNftDispatcher {
                 contract_address: deployed_contract_address,
             };
             nft_dispatcher.authorize_minter(get_contract_address());
@@ -1242,11 +1239,6 @@ pub mod AttenSysCourse {
 
             self.master_address.write(master_address);
         }
-
-        fn set_nft_class_hash(ref self: ContractState, hash: ClassHash) {
-            self.ensure_admin(); // Only admin can set this
-            self.nft_class_hash.write(hash);
-        }
     }
 
     #[generate_trait]
@@ -1317,4 +1309,3 @@ pub mod AttenSysCourse {
         }
     }
 }
-
