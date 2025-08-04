@@ -769,45 +769,4 @@ fn test_course_contract_is_automatically_authorized() {
     // Verify the hardcoded course contract is authorized
     assert(nft_contract.is_authorized_minter(expected_course_addr), 'contract shudbe authorizd');
 }
-// #[test]
-// #[fork(url: "https://starknet-sepolia.public.blastapi.io/rpc/v0_8", block_tag: latest)]
-// fn test_certification_mints_nft_successfully() {
-//     let (course_contract, nft_addr) = deploy_integrated_contracts();
-//     let course_dispatcher = IAttenSysCourseDispatcher { contract_address: course_contract };
-//     let nft_dispatcher = IAttenSysNftDispatcher { contract_address: nft_addr };
-
-//     let owner: ContractAddress = contract_address_const::<'owner'>();
-//     let student: ContractAddress = contract_address_const::<'student'>();
-
-//     // Create course
-//     start_cheat_caller_address(course_contract, owner);
-//     let (nft_contract_addr, course_id) = course_dispatcher
-//         .create_course(owner, true, "base_uri", "name", "SYM", "ipfs_uri", o);
-//     stop_cheat_caller_address(course_contract);
-
-//     // Student acquires and completes course
-//     start_cheat_caller_address(course_contract, student);
-//     course_dispatcher.acquire_a_course(course_id);
-
-//     // Verify student is not certified initially
-//     assert(
-//         !course_dispatcher.is_user_certified_for_course(student, course_id),
-//         'student shudnt be certfied init',
-//     );
-
-//     // Complete certification
-//     course_dispatcher
-//         .finish_course_claim_certification(
-//             course_id, 85_u8, get_block_timestamp(), (123_felt252, 456_felt252),
-//         );
-
-//     // Verify student is now certified
-//     assert(
-//         course_dispatcher.is_user_certified_for_course(student, course_id),
-//         'student should be certified',
-//     );
-
-//     stop_cheat_caller_address(course_contract);
-// }
-
 
