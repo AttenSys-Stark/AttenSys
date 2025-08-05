@@ -1,3 +1,6 @@
+use attendsys::contracts::attensysnft::AttenSysNft::{
+    IAttenSysNftDispatcher, IAttenSysNftDispatcherTrait,
+};
 use attendsys::contracts::course::AttenSysCourse::{
     IAttenSysCourseDispatcher, IAttenSysCourseDispatcherTrait,
 };
@@ -31,18 +34,38 @@ fn deploy_nft_contract(name: ByteArray) -> (ContractAddress, ClassHash) {
     let token_uri: ByteArray = "https://dummy_uri.com/your_id";
     let name_: ByteArray = "Attensys";
     let symbol: ByteArray = "ATS";
+    let owner: ContractAddress = contract_address_const::<'owner'>(); // Add owner
 
     let mut constructor_calldata = ArrayTrait::new();
 
     token_uri.serialize(ref constructor_calldata);
     name_.serialize(ref constructor_calldata);
     symbol.serialize(ref constructor_calldata);
+    owner.serialize(ref constructor_calldata); // Add owner to constructor args
 
     let contract = declare(name).unwrap().contract_class();
     let (contract_address, _) = ContractClassTrait::deploy(contract, @constructor_calldata)
         .unwrap();
 
     (contract_address, *contract.class_hash)
+}
+
+// New helper function for integrated deployment
+fn deploy_integrated_contracts() -> (ContractAddress, ContractAddress) {
+    let (nft_contract_address, hash) = deploy_nft_contract("AttenSysNft");
+    let course_contract_address = deploy_contract("AttenSysCourse", hash);
+    // let course_contract = IAttenSysCourseDispatcher { contract_address: course_contract_address
+    // };
+    // let admin: ContractAddress = contract_address_const::<'admin'>();
+
+    let nft_contract = IAttenSysNftDispatcher { contract_address: nft_contract_address };
+    let owner: ContractAddress = contract_address_const::<'owner'>();
+
+    start_cheat_caller_address(nft_contract_address, owner);
+    nft_contract.authorize_minter(course_contract_address);
+    stop_cheat_caller_address(nft_contract_address);
+
+    (course_contract_address, nft_contract_address)
 }
 
 #[test]
@@ -661,5 +684,89 @@ fn test_toggle_course_approval() {
     );
 
     stop_cheat_caller_address(contract_address);
+}
+
+#[test]
+#[should_panic(expected: 'Unauthorized minter')]
+fn test_unauthorized_minting_should_fail() {
+    let (_, nft_addr) = deploy_integrated_contracts();
+    let nft_contract = IAttenSysNftDispatcher { contract_address: nft_addr };
+
+    let unauthorized_caller: ContractAddress = contract_address_const::<'hacker'>();
+    let recipient: ContractAddress = contract_address_const::<'student'>();
+    let token_id: u256 = 1;
+
+    // Try to mint as unauthorized caller - should panic
+    start_cheat_caller_address(nft_addr, unauthorized_caller);
+    nft_contract.mint(recipient, token_id);
+    stop_cheat_caller_address(nft_addr);
+}
+
+#[test]
+fn test_owner_can_authorize_and_revoke_minters() {
+    let (_, nft_addr) = deploy_integrated_contracts();
+    let nft_contract = IAttenSysNftDispatcher { contract_address: nft_addr };
+
+    let owner: ContractAddress = contract_address_const::<
+        'owner',
+    >(); // Use the same owner from deployment
+    let new_minter: ContractAddress = contract_address_const::<'new_minter'>();
+    let recipient: ContractAddress = contract_address_const::<'student'>();
+    let token_id: u256 = 1;
+
+    // Verify new_minter is not authorized initially
+    assert(!nft_contract.is_authorized_minter(new_minter), 'should not be authorized');
+
+    // Owner authorizes new minter
+    start_cheat_caller_address(nft_addr, owner);
+    nft_contract.authorize_minter(new_minter);
+    stop_cheat_caller_address(nft_addr);
+
+    // Verify new_minter is now authorized
+    assert(nft_contract.is_authorized_minter(new_minter), 'should be authorized');
+
+    // New minter should be able to mint
+    start_cheat_caller_address(nft_addr, new_minter);
+    nft_contract.mint(recipient, token_id);
+    stop_cheat_caller_address(nft_addr);
+
+    // Owner revokes minter
+    start_cheat_caller_address(nft_addr, owner);
+    nft_contract.revoke_minter(new_minter);
+    stop_cheat_caller_address(nft_addr);
+
+    // Verify new_minter is no longer authorized
+    assert(!nft_contract.is_authorized_minter(new_minter), 'should not be authorized');
+}
+
+
+#[test]
+#[should_panic(expected: 'Caller is not the owner')]
+fn test_non_owner_cannot_authorize_minters() {
+    let (_, nft_contract_address) = deploy_integrated_contracts();
+    let nft_contract = IAttenSysNftDispatcher { contract_address: nft_contract_address };
+
+    let non_owner: ContractAddress = contract_address_const::<'hacker'>();
+    let potential_minter: ContractAddress = contract_address_const::<'potential_minter'>();
+
+    // Non-owner tries to authorize a minter (should fail)
+    start_cheat_caller_address(nft_contract_address, non_owner);
+    nft_contract.authorize_minter(potential_minter);
+    stop_cheat_caller_address(nft_contract_address);
+}
+
+#[test]
+fn test_course_contract_is_automatically_authorized() {
+    let (course_contract_addr, nft_addr) = deploy_integrated_contracts();
+    let nft_contract = IAttenSysNftDispatcher { contract_address: nft_addr };
+
+    // Hardcoded course contract address from NFT contract
+    let expected_course_addr: ContractAddress =
+        0x5390dc11f780b241418e875095cca768ded2a9c1b605af036bf2760bd5bf6ef
+        .try_into()
+        .unwrap();
+
+    // Verify the hardcoded course contract is authorized
+    assert(nft_contract.is_authorized_minter(expected_course_addr), 'contract shudbe authorizd');
 }
 

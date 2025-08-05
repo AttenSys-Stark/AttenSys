@@ -92,6 +92,9 @@ pub trait IAttenSysCourse<TContractState> {
 pub trait IAttenSysNft<TContractState> {
     // NFT contract
     fn mint(ref self: TContractState, recipient: ContractAddress, token_id: u256);
+    fn authorize_minter(ref self: TContractState, minter: ContractAddress);
+    fn revoke_minter(ref self: TContractState, minter: ContractAddress);
+    fn is_authorized_minter(self: @TContractState, minter: ContractAddress) -> bool;
 }
 
 #[starknet::interface]
@@ -483,6 +486,7 @@ pub mod AttenSysCourse {
             base_uri.serialize(ref constructor_args);
             name_.serialize(ref constructor_args);
             symbol.serialize(ref constructor_args);
+            get_contract_address().serialize(ref constructor_args);
             let contract_address_salt: felt252 = current_identifier.try_into().unwrap();
 
             //deploy contract
@@ -490,6 +494,12 @@ pub mod AttenSysCourse {
                 self.hash.read(), contract_address_salt, constructor_args.span(), false,
             )
                 .expect('failed to deploy_syscall');
+            //authorize the minter
+            let nft_dispatcher = super::IAttenSysNftDispatcher {
+                contract_address: deployed_contract_address,
+            };
+            nft_dispatcher.authorize_minter(get_contract_address());
+
             self
                 .track_minted_nft_id
                 .entry((current_identifier, deployed_contract_address))
@@ -1351,4 +1361,3 @@ pub mod AttenSysCourse {
         }
     }
 }
-

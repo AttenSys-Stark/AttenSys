@@ -792,6 +792,7 @@ pub mod AttenSysOrg {
                 nft_uri.serialize(ref constructor_args);
                 nft_name.serialize(ref constructor_args);
                 nft_symbol.serialize(ref constructor_args);
+                get_contract_address().serialize(ref constructor_args);
                 //deploy contract
                 let contract_address_salt: felt252 = caller.into();
                 let (deployed_contract_address, _) = deploy_syscall(
