@@ -31,6 +31,7 @@ pub trait IAttenSysSponsor<TContractState> {
 pub mod AttenSysSponsor {
     use attendsys::contracts::sponsor::AttenSysSponsor::{IERC20Dispatcher, IERC20DispatcherTrait};
     use attendsys::contracts::validation::input_validation::InputValidation;
+    use attendsys::contracts::validation::safe_math::SafeMath;
     use core::num::traits::Zero;
     use core::starknet::storage::Map;
     use starknet::{get_caller_address, get_contract_address};
@@ -41,6 +42,8 @@ pub mod AttenSysSponsor {
         balances: Map<ContractAddress, u256>,
         attenSysOrganization: ContractAddress,
         attenSysEvent: ContractAddress,
+        // Reentrancy protection
+        _reentrancy_status: Map<ContractAddress, bool>,
     }
 
     #[event]
@@ -48,18 +51,26 @@ pub mod AttenSysSponsor {
     pub enum Event {
         SponsorDeposited: SponsorDeposited,
         TokenWithdraw: TokenWithdraw,
+        ReentrancyAttempted: ReentrancyAttempted,
     }
 
     #[derive(Drop, Debug, PartialEq, starknet::Event)]
     pub struct SponsorDeposited {
         pub token: ContractAddress,
         pub amount: u256,
+        pub sender: ContractAddress,
     }
 
     #[derive(Drop, Debug, PartialEq, starknet::Event)]
     pub struct TokenWithdraw {
         pub token: ContractAddress,
         pub amount: u256,
+        pub recipient: ContractAddress,
+    }
+
+    #[derive(Drop, Debug, PartialEq, starknet::Event)]
+    pub struct ReentrancyAttempted {
+        pub caller: ContractAddress,
     }
 
     #[constructor]
@@ -78,6 +89,26 @@ pub mod AttenSysSponsor {
         self.attenSysEvent.write(event_contract_address);
     }
 
+    // Reentrancy protection trait
+    trait ReentrancyGuardTrait<TContractState> {
+        fn _non_reentrant_before(ref self: TContractState);
+        fn _non_reentrant_after(ref self: TContractState);
+    }
+
+    // Reentrancy protection implementation
+    impl ReentrancyGuardImpl of ReentrancyGuardTrait<ContractState> {
+        fn _non_reentrant_before(ref self: ContractState) {
+            let caller = get_caller_address();
+            let is_reentering = self._reentrancy_status.read(caller);
+            assert(!is_reentering, 'ReentrancyGuard: reentrant call');
+            self._reentrancy_status.write(caller, true);
+        }
+
+        fn _non_reentrant_after(ref self: ContractState) {
+            let caller = get_caller_address();
+            self._reentrancy_status.write(caller, false);
+        }
+    }
 
     #[abi(embed_v0)]
     impl AttenSysSponsorImpl of super::IAttenSysSponsor<ContractState> {
@@ -103,18 +134,29 @@ pub mod AttenSysSponsor {
                 .transferFrom(sender: sender, recipient: get_contract_address(), amount: amount);
 
             if has_transferred {
-                self
-                    .emit(
-                        Event::SponsorDeposited(
-                            SponsorDeposited { token: token_address, amount: amount },
-                        ),
-                    );
-                self.balances.write(token_address, self.balances.read(token_address) + amount)
+                // Update state (Effects)
+                let current_balance = self.balances.read(token_address);
+                let new_balance = SafeMath::safe_add_u256(current_balance, amount);
+                self.balances.write(token_address, new_balance);
+
+                // Emit event (Interactions)
+                self.emit(
+                    Event::SponsorDeposited(
+                        SponsorDeposited { 
+                            token: token_address, 
+                            amount: amount,
+                            sender: sender,
+                        },
+                    ),
+                );
             }
         }
 
         fn withdraw(ref self: ContractState, token_address: ContractAddress, amount: u256) {
-            // Input validation
+            // Reentrancy protection
+            self._non_reentrant_before();
+
+            // Input validation (Checks)
             InputValidation::validate_non_zero_address(token_address);
             InputValidation::validate_amount_not_zero_u256(amount);
 
@@ -126,18 +168,31 @@ pub mod AttenSysSponsor {
 
             let contract_token_balance = self.balances.read(token_address);
             InputValidation::validate_sufficient_balance_u256(contract_token_balance, amount);
+
+            // Update state before external call (Effects)
+            let new_balance = SafeMath::safe_sub_u256(contract_token_balance, amount);
+            self.balances.write(token_address, new_balance);
+
+            // External call (Interactions)
             let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
             let has_transferred = token_dispatcher.transfer(recipient: caller, amount: amount);
 
-            if has_transferred {
-                self
-                    .emit(
-                        Event::SponsorDeposited(
-                            SponsorDeposited { token: token_address, amount: amount },
-                        ),
-                    );
-                self.balances.write(token_address, self.balances.read(token_address) - amount)
-            }
+            // Verify transfer success
+            assert(has_transferred, 'Token transfer failed');
+
+            // Emit event
+            self.emit(
+                Event::TokenWithdraw(
+                    TokenWithdraw { 
+                        token: token_address, 
+                        amount: amount,
+                        recipient: caller,
+                    },
+                ),
+            );
+
+            // Clear reentrancy protection
+            self._non_reentrant_after();
         }
 
         fn get_contract_balance(self: @ContractState, token_address: ContractAddress) -> u256 {
