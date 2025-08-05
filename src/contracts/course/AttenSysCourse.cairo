@@ -116,6 +116,7 @@ pub trait IERC20<TContractState> {
 pub mod AttenSysCourse {
     use attendsys::contracts::course::AttenSysCourse::{IERC20Dispatcher, IERC20DispatcherTrait};
     use attendsys::contracts::validation::input_validation::InputValidation;
+    use attendsys::contracts::validation::safe_math::SafeMath;
     use core::ecdsa::check_ecdsa_signature;
     use core::poseidon::poseidon_hash_span;
     use core::starknet::storage::{
@@ -330,6 +331,8 @@ pub mod AttenSysCourse {
         max_assessment_attempts: u8,
         // Master address for signature verification
         master_address: ContractAddress,
+        // Reentrancy protection
+        _reentrancy_status: Map<ContractAddress, bool>,
     }
     //find a way to keep track of all course identifiers for each owner.
     #[derive(Drop, Serde, starknet::Store)]
@@ -374,6 +377,27 @@ pub mod AttenSysCourse {
                     0x02f43F1966bBB129B8e33C6c775213a8D466dcD1c949c20eE48e7c4B45185c85,
                 >(),
             );
+    }
+
+    // Reentrancy protection trait
+    trait ReentrancyGuardTrait<TContractState> {
+        fn _non_reentrant_before(ref self: TContractState);
+        fn _non_reentrant_after(ref self: TContractState);
+    }
+
+    // Reentrancy protection implementation
+    impl ReentrancyGuardImpl of ReentrancyGuardTrait<ContractState> {
+        fn _non_reentrant_before(ref self: ContractState) {
+            let caller = get_caller_address();
+            let is_reentering = self._reentrancy_status.read(caller);
+            assert(!is_reentering, 'ReentrancyGuard: reentrant call');
+            self._reentrancy_status.write(caller, true);
+        }
+
+        fn _non_reentrant_after(ref self: ContractState) {
+            let caller = get_caller_address();
+            self._reentrancy_status.write(caller, false);
+        }
     }
 
     #[abi(embed_v0)]
@@ -965,9 +989,11 @@ pub mod AttenSysCourse {
         }
 
         fn creator_withdraw(ref self: ContractState, amount: u128) {
-            // Input validation
-            InputValidation::validate_amount_not_zero_u128(amount);
+            // Reentrancy protection
+            self._non_reentrant_before();
 
+            // Input validation (Checks)
+            InputValidation::validate_amount_not_zero_u128(amount);
             let caller = get_caller_address();
             InputValidation::validate_non_zero_address(caller);
 
@@ -980,17 +1006,29 @@ pub mod AttenSysCourse {
             };
             let contract_token_balance = token_dispatcher.balanceOf(get_contract_address());
             InputValidation::validate_sufficient_balance_u128(contract_token_balance, amount);
-            let fee = amount * self.fee_value.read() / 100;
-            let withdrawable_less_fee = amount - fee;
-            self.fee_withdrawable.write(self.fee_withdrawable.read() + fee);
-            let has_transferred = token_dispatcher
-                .transfer(recipient: caller, amount: (withdrawable_less_fee * DECIMALS).into());
-            if has_transferred {
-                self
-                    .withdrawable_amount
-                    .entry(caller)
-                    .write(self.withdrawable_amount.entry(caller).read() - amount);
-            }
+
+            // Safe fee calculation
+            let fee_percentage = self.fee_value.read();
+            let (withdrawable_less_fee, fee) = SafeMath::safe_fee_calculation_u128(amount, fee_percentage);
+
+            // Update state before external call (Effects)
+            let current_fee_withdrawable = self.fee_withdrawable.read();
+            let new_fee_withdrawable = SafeMath::safe_add_u128(current_fee_withdrawable, fee);
+            self.fee_withdrawable.write(new_fee_withdrawable);
+
+            let current_withdrawable = self.withdrawable_amount.entry(caller).read();
+            let new_withdrawable = SafeMath::safe_sub_u128(current_withdrawable, amount);
+            self.withdrawable_amount.entry(caller).write(new_withdrawable);
+
+            // External call (Interactions)
+            let transfer_amount = SafeMath::safe_mul_u128(withdrawable_less_fee, DECIMALS);
+            let has_transferred = token_dispatcher.transfer(recipient: caller, amount: transfer_amount.into());
+
+            // Verify transfer success
+            assert(has_transferred, 'Token transfer failed');
+
+            // Clear reentrancy protection
+            self._non_reentrant_after();
         }
 
         fn init_fee_percent(ref self: ContractState, fee: u128) {
@@ -1002,19 +1040,33 @@ pub mod AttenSysCourse {
         }
 
         fn admin_withdrawables(ref self: ContractState, amount: u128) {
-            // Input validation
+            // Reentrancy protection
+            self._non_reentrant_before();
+
+            // Input validation (Checks)
             InputValidation::validate_amount_not_zero_u128(amount);
             let caller = get_caller_address();
             InputValidation::validate_admin_only(caller, self.admin.read());
             InputValidation::validate_sufficient_balance_u128(self.fee_withdrawable.read(), amount);
+
+            // Update state before external call (Effects)
+            let current_fee_withdrawable = self.fee_withdrawable.read();
+            let new_fee_withdrawable = SafeMath::safe_sub_u128(current_fee_withdrawable, amount);
+            self.fee_withdrawable.write(new_fee_withdrawable);
+
+            // External call (Interactions)
             let token_dispatcher = IERC20Dispatcher {
                 contract_address: STRK_CONTRACT_ADDRESS.try_into().unwrap(),
             };
+            let transfer_amount = SafeMath::safe_mul_u128(amount, DECIMALS);
             let has_transferred = token_dispatcher
-                .transfer(recipient: get_caller_address(), amount: (amount * DECIMALS).into());
-            if has_transferred {
-                self.fee_withdrawable.write(self.fee_withdrawable.read() - amount);
-            }
+                .transfer(recipient: get_caller_address(), amount: transfer_amount.into());
+
+            // Verify transfer success
+            assert(has_transferred, 'Token transfer failed');
+
+            // Clear reentrancy protection
+            self._non_reentrant_after();
         }
         fn get_creator_withdrawable_amount(self: @ContractState, user: ContractAddress) -> u128 {
             self.withdrawable_amount.entry(user).read()

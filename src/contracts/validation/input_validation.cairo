@@ -47,11 +47,11 @@ pub mod InputValidation {
     }
 
     pub fn validate_sufficient_balance_u256(balance: u256, amount: u256) {
-        assert(balance >= amount, 'Insufficient balance');
+        assert(balance >= amount, 'No withdrawable balance');
     }
 
     pub fn validate_sufficient_balance_u128(balance: u128, amount: u128) {
-        assert(balance >= amount, 'Insufficient balance');
+        assert(balance >= amount, 'No withdrawable balance');
     }
 
     // Event/Course specific validation

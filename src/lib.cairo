@@ -22,6 +22,8 @@ pub mod contracts {
     }
     pub mod validation {
         pub mod input_validation;
+        pub mod safe_math;
+        pub mod reentrancy_guard;
     }
     pub mod mock;
     pub mod oracle;
